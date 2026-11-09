@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "name": "Interlagos Elevation Profile",
+  "total_range_m": 40.0,
+  "control_points": [
+    {
+      "corner": "S/F",
+      "s": 0.0,
+      "height": 40.0
+    },
+    {
+      "corner": "T1",
+      "s": 308.06,
+      "height": 36.0
+    },
+    {
+      "corner": "T3",
+      "s": 612.23,
+      "height": 28.0
+    },
+    {
+      "corner": "T4",
+      "s": 1386.29,
+      "height": 14.0
+    },
+    {
+      "corner": "T5",
+      "s": 1552.02,
+      "height": 10.0
+    },
+    {
+      "corner": "T6",
+      "s": 2021.92,
+      "height": 14.0
+    },
+    {
+      "corner": "T7",
+      "s": 2150.6,
+      "height": 18.0
+    },
+    {
+      "corner": "T8",
+      "s": 2328.03,
+      "height": 16.0
+    },
+    {
+      "corner": "T9",
+      "s": 2443.07,
+      "height": 8.0
+    },
+    {
+      "corner": "T10",
+      "s": 2708.24,
+      "height": 6.0
+    },
+    {
+      "corner": "T11",
+      "s": 2934.41,
+      "height": 2.0
+    },
+    {
+      "corner": "T12",
+      "s": 3219.08,
+      "height": 0.0
+    },
+    {
+      "corner": "T13",
+      "s": 3336.06,
+      "height": 14.0
+    },
+    {
+      "corner": "T14",
+      "s": 3618.78,
+      "height": 30.0
+    },
+    {
+      "corner": "T15",
+      "s": 3993.14,
+      "height": 38.0
+    },
+    {
+      "corner": "S/F_end",
+      "s": 4309.0,
+      "height": 40.0
+    }
+  ]
+}

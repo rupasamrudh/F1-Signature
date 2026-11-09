@@ -1,0 +1,57 @@
+# Unity generated files and folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Asset meta files for folders that are not trackable
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# Visual Studio / VS Code / Rider cache & project files
+.vs/
+.idea/
+.gradle/
+.utmp/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# OS generated
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Android build artifacts / APKs / backups
+*.apk
+*.aab
+F1 Signature_BackUpThisFolder_ButDontShipItWithYourGame/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary / scratch / build outputs
+scratch/
+build/
+Tests/bin/
+Tests/obj/
+Tests/*.dll
+Tests/*.runtimeconfig.json

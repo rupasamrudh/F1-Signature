@@ -22,10 +22,13 @@ namespace F1Sim.Simulation.Track
         public float z;
         public float width;
         public float banking_deg;
+        public float pitch_deg;
         public float curvature;
         public float radius_m;
         public float px_x;
         public float px_y;
+        public float barrier_left;
+        public float barrier_right;
     }
 
     [Serializable]
@@ -103,6 +106,7 @@ namespace F1Sim.Simulation.Track
         public int version = 1;
         public string name = "Interlagos Elevation Profile";
         public float total_range_m = 40.0f;
+        public float max_gradient_pct = 9.09f;
         public List<ElevationControlPoint> control_points = new List<ElevationControlPoint>();
     }
 }

@@ -1,9 +1,11 @@
-// TrackSplineTests.cs — NUnit tests T1 to T9 for M3 Part 1 track data and spline library.
+// TrackSplineTests.cs — EditMode unit tests for TrackSpline and track data (T1-T14).
+// Pure C#, uses System.MathF and NUnit.
 using System;
 using System.IO;
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.Diagnostics;
 using NUnit.Framework;
+using F1Sim.Simulation;
 using F1Sim.Simulation.Track;
 
 namespace F1Sim.Tests
@@ -21,7 +23,6 @@ namespace F1Sim.Tests
             string trackPath = "Assets/Data/Tracks/f1sig_track.json";
             string elevPath = "Assets/Data/Tracks/f1sig_elevation.json";
 
-            // Fallback for scratch execution
             if (!File.Exists(trackPath)) trackPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../Assets/Data/Tracks/f1sig_track.json");
             if (!File.Exists(elevPath)) elevPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../../Assets/Data/Tracks/f1sig_elevation.json");
 
@@ -32,7 +33,6 @@ namespace F1Sim.Tests
 
         static TrackConfig ParseTrackJson(string json)
         {
-            // Simple robust JSON parser for standard TrackConfig in pure C# test environment
             var cfg = new TrackConfig();
             cfg.samples = new List<TrackSample>();
             cfg.corners = new List<TrackCorner>();
@@ -50,72 +50,103 @@ namespace F1Sim.Tests
             while ((line = reader.ReadLine()) != null)
             {
                 line = line.Trim();
-                if (line.StartsWith("\"total_length_m\":"))
-                    cfg.total_length_m = float.Parse(ExtractVal(line));
-                else if (line.StartsWith("\"airDensity\":"))
-                    cfg.airDensity = float.Parse(ExtractVal(line));
-                else if (line.StartsWith("\"scale_m_per_px\":"))
-                    cfg.scale_m_per_px = float.Parse(ExtractVal(line));
-                else if (line.StartsWith("\"samples\":"))
-                    section = "samples";
-                else if (line.StartsWith("\"corners\":"))
-                    section = "corners";
-                else if (line.StartsWith("\"sectors\":"))
-                    section = "sectors";
-                else if (line.StartsWith("\"straight_mode_zones\":"))
-                    section = "zones";
-                else if (line == "{")
+                if (line.StartsWith("\"sectors\":")) { section = "sectors"; continue; }
+                if (line.StartsWith("\"straight_mode_zones\":")) { section = "zones"; continue; }
+                if (line.StartsWith("\"corners\":")) { section = "corners"; continue; }
+                if (line.StartsWith("\"spawn_slot\":")) { section = "spawn"; continue; }
+                if (line.StartsWith("\"samples\":")) { section = "samples"; continue; }
+
+                if (section == "")
                 {
-                    if (section == "samples") currentSample = new TrackSample();
-                    else if (section == "corners") currentCorner = new TrackCorner();
-                    else if (section == "sectors") currentSector = new TrackSector();
-                    else if (section == "zones") currentZone = new StraightModeZone();
+                    if (line.StartsWith("\"total_length_m\":")) cfg.total_length_m = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"sample_spacing_m\":")) cfg.sample_spacing_m = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"scale_m_per_px\":")) cfg.scale_m_per_px = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"airDensity\":")) cfg.airDensity = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"default_width_m\":")) cfg.default_width_m = float.Parse(ExtractVal(line));
                 }
-                else if (line.StartsWith("}") || line.StartsWith("},"))
+                else if (section == "sectors")
                 {
-                    if (currentSample != null) { cfg.samples.Add(currentSample); currentSample = null; }
-                    if (currentCorner != null) { cfg.corners.Add(currentCorner); currentCorner = null; }
-                    if (currentSector != null) { cfg.sectors.Add(currentSector); currentSector = null; }
-                    if (currentZone != null) { cfg.straight_mode_zones.Add(currentZone); currentZone = null; }
+                    if (line == "{") currentSector = new TrackSector();
+                    else if (line.StartsWith("}") || line.StartsWith("},"))
+                    {
+                        if (currentSector != null) { cfg.sectors.Add(currentSector); currentSector = null; }
+                    }
+                    else if (currentSector != null)
+                    {
+                        if (line.StartsWith("\"sector\":")) currentSector.sector = int.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"start_s\":")) currentSector.start_s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"end_s\":")) currentSector.end_s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"length_m\":")) currentSector.length_m = float.Parse(ExtractVal(line));
+                    }
                 }
-                else if (currentSample != null)
+                else if (section == "zones")
                 {
-                    if (line.StartsWith("\"index\":")) currentSample.index = int.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"s\":")) currentSample.s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"x\":")) currentSample.x = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"y\":")) currentSample.y = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"z\":")) currentSample.z = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"width\":")) currentSample.width = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"curvature\":")) currentSample.curvature = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"radius_m\":")) currentSample.radius_m = float.Parse(ExtractVal(line));
+                    if (line == "{") currentZone = new StraightModeZone();
+                    else if (line.StartsWith("}") || line.StartsWith("},"))
+                    {
+                        if (currentZone != null) { cfg.straight_mode_zones.Add(currentZone); currentZone = null; }
+                    }
+                    else if (currentZone != null)
+                    {
+                        if (line.StartsWith("\"name\":")) currentZone.name = ExtractStr(line);
+                        else if (line.StartsWith("\"start_s\":")) currentZone.start_s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"end_s\":")) currentZone.end_s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"length_m\":")) currentZone.length_m = float.Parse(ExtractVal(line));
+                    }
                 }
-                else if (currentCorner != null)
+                else if (section == "corners")
                 {
-                    if (line.StartsWith("\"number\":")) currentCorner.number = int.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"name\":")) currentCorner.name = ExtractStr(line);
-                    else if (line.StartsWith("\"apex_s\":")) currentCorner.apex_s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"entry_s\":")) currentCorner.entry_s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"exit_s\":")) currentCorner.exit_s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"direction\":")) currentCorner.direction = ExtractStr(line);
-                    else if (line.StartsWith("\"radius_m\":")) currentCorner.radius_m = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"curvature\":")) currentCorner.curvature = float.Parse(ExtractVal(line));
+                    if (line == "{") currentCorner = new TrackCorner();
+                    else if (line.StartsWith("}") || line.StartsWith("},"))
+                    {
+                        if (currentCorner != null) { cfg.corners.Add(currentCorner); currentCorner = null; }
+                    }
+                    else if (currentCorner != null)
+                    {
+                        if (line.StartsWith("\"number\":")) currentCorner.number = int.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"name\":")) currentCorner.name = ExtractStr(line);
+                        else if (line.StartsWith("\"apex_s\":")) currentCorner.apex_s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"entry_s\":")) currentCorner.entry_s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"exit_s\":")) currentCorner.exit_s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"direction\":")) currentCorner.direction = ExtractStr(line);
+                        else if (line.StartsWith("\"radius_m\":")) currentCorner.radius_m = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"curvature\":")) currentCorner.curvature = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"label_x_px\":")) currentCorner.label_x_px = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"label_y_px\":")) currentCorner.label_y_px = float.Parse(ExtractVal(line));
+                    }
                 }
-                else if (currentSector != null)
+                else if (section == "spawn")
                 {
-                    if (line.StartsWith("\"sector\":")) currentSector.sector = int.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"start_s\":")) currentSector.start_s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"end_s\":")) currentSector.end_s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"length_m\":")) currentSector.length_m = float.Parse(ExtractVal(line));
+                    if (line.StartsWith("\"s\":")) cfg.spawn_slot.s = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"x\":")) cfg.spawn_slot.x = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"y\":")) cfg.spawn_slot.y = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"z\":")) cfg.spawn_slot.z = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"yaw_deg\":")) cfg.spawn_slot.yaw_deg = float.Parse(ExtractVal(line));
                 }
-                else if (currentZone != null)
+                else if (section == "samples")
                 {
-                    if (line.StartsWith("\"name\":")) currentZone.name = ExtractStr(line);
-                    else if (line.StartsWith("\"start_s\":")) currentZone.start_s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"end_s\":")) currentZone.end_s = float.Parse(ExtractVal(line));
-                    else if (line.StartsWith("\"length_m\":")) currentZone.length_m = float.Parse(ExtractVal(line));
+                    if (line == "{") currentSample = new TrackSample();
+                    else if (line.StartsWith("}") || line.StartsWith("},"))
+                    {
+                        if (currentSample != null) { cfg.samples.Add(currentSample); currentSample = null; }
+                    }
+                    else if (currentSample != null)
+                    {
+                        if (line.StartsWith("\"index\":")) currentSample.index = int.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"s\":")) currentSample.s = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"x\":")) currentSample.x = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"y\":")) currentSample.y = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"z\":")) currentSample.z = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"width\":")) currentSample.width = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"banking_deg\":")) currentSample.banking_deg = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"pitch_deg\":")) currentSample.pitch_deg = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"curvature\":")) currentSample.curvature = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"radius_m\":")) currentSample.radius_m = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"px_x\":")) currentSample.px_x = float.Parse(ExtractVal(line));
+                        else if (line.StartsWith("\"px_y\":")) currentSample.px_y = float.Parse(ExtractVal(line));
+                    }
                 }
             }
-
             return cfg;
         }
 
@@ -157,18 +188,21 @@ namespace F1Sim.Tests
             return v;
         }
 
-        // ── T1: Loop Closes ──────────────────────────────────────────────────
+        // ── T1: Real Closure & Length ────────────────────────────────────────
         [Test]
-        public void T1_LoopCloses()
+        public void T1_RealClosureAndNominalSpacing()
         {
             var s0 = config.samples[0];
             var sEnd = config.samples[^1];
 
             float dx = s0.x - sEnd.x;
             float dz = s0.z - sEnd.z;
-            float closingDist = MathF.Sqrt(dx * dx + dz * dz);
+            float closingGap = MathF.Sqrt(dx * dx + dz * dz);
 
-            // Compute total closed polygon perimeter
+            float nominalSpacing = config.sample_spacing_m;
+            float gapErrPct = MathF.Abs(closingGap - nominalSpacing) / nominalSpacing * 100.0f;
+
+            // Total polygon perimeter
             float perimeter = 0f;
             for (int i = 0; i < config.samples.Count; i++)
             {
@@ -178,11 +212,11 @@ namespace F1Sim.Tests
                 perimeter += MathF.Sqrt(segDx * segDx + segDz * segDz);
             }
 
-            float errPct = MathF.Abs(perimeter - 4309.0f) / 4309.0f * 100.0f;
-            Console.WriteLine($"T1 Loop Closes: Closing dist={closingDist:0.00}m (target <= 2.0m), Total length={perimeter:0.1}m (err={errPct:0.2}%, target < 1%)");
+            float lenErrPct = MathF.Abs(perimeter - 4309.0f) / 4309.0f * 100.0f;
+            Console.WriteLine($"T1 Real Closure: Closing gap={closingGap:0.000}m vs nominal={nominalSpacing:0.000}m (error={gapErrPct:0.2}%, limit <= 5%), Total length={perimeter:0.1}m (error={lenErrPct:0.2}%)");
 
-            Assert.That(closingDist, Is.LessThanOrEqualTo(2.0f), $"Closing distance too high: {closingDist:0.00} m");
-            Assert.That(errPct, Is.LessThan(1.0f), $"Total length deviates by {errPct:0.2}% from 4309m");
+            Assert.That(gapErrPct, Is.LessThanOrEqualTo(5.0f), $"Closing gap deviates from nominal spacing by {gapErrPct:0.2}%");
+            Assert.That(lenErrPct, Is.LessThan(1.0f), $"Total length deviates by {lenErrPct:0.2}% from 4309m");
         }
 
         // ── T2: No Self-Intersection ─────────────────────────────────────────
@@ -199,7 +233,7 @@ namespace F1Sim.Tests
 
                 for (int j = i + 2; j < n; j++)
                 {
-                    if (i == 0 && j == n - 1) continue; // adjacent
+                    if (i == 0 && j == n - 1) continue;
 
                     float b1x = config.samples[j].x, b1z = config.samples[j].z;
                     float b2x = config.samples[(j + 1) % n].x, b2z = config.samples[(j + 1) % n].z;
@@ -207,7 +241,6 @@ namespace F1Sim.Tests
                     if (SegmentsIntersect(a1x, a1z, a2x, a2z, b1x, b1z, b2x, b2z))
                     {
                         intersections++;
-                        Console.WriteLine($"Intersection found between seg {i} and seg {j}");
                     }
                 }
             }
@@ -287,49 +320,78 @@ namespace F1Sim.Tests
             Assert.That(maxDeltaK, Is.LessThan(0.06f), $"Curvature change between consecutive samples too high: {maxDeltaK:0.00000} 1/m");
         }
 
-        // ── T5: Elevation Range & Key Peaks ──────────────────────────────────
+        // ── T5: Elevation Range, Continuity & Gradient Limit ──────────────────
         [Test]
-        public void T5_ElevationRangeAndKeyPoints()
+        public void T5_ElevationRangeContinuityAndGradient()
         {
             float minY = float.MaxValue, maxY = float.MinValue;
             float sAtMax = 0f, sAtMin = 0f;
+            float maxStepDiff = 0f;
+            float maxGrad = 0f;
+            int n = config.samples.Count;
 
-            foreach (var smp in config.samples)
+            for (int i = 0; i < n; i++)
             {
+                var smp = config.samples[i];
                 if (smp.y > maxY) { maxY = smp.y; sAtMax = smp.s; }
                 if (smp.y < minY) { minY = smp.y; sAtMin = smp.s; }
+
+                int next = (i + 1) % n;
+                float diff = MathF.Abs(config.samples[next].y - smp.y);
+                if (diff > maxStepDiff) maxStepDiff = diff;
+
+                float grad = diff / config.sample_spacing_m;
+                if (grad > maxGrad) maxGrad = grad;
             }
 
             float range = maxY - minY;
-            Console.WriteLine($"T5 Elevation: Range={range:0.1}m (target 38-48m), MaxY={maxY:0.1}m at s={sAtMax:0}m (target within 150m of S/F), MinY={minY:0.1}m at s={sAtMin:0}m");
+            Console.WriteLine($"T5 Elevation: Range={range:0.1}m (target 40-46m), MaxY={maxY:0.1}m at s={sAtMax:0}m, MinY={minY:0.1}m at s={sAtMin:0}m, Max step diff={maxStepDiff:0.000}m (limit <= 0.1m), Max gradient={maxGrad * 100:0.1}% (limit <= 10%)");
 
-            Assert.That(range, Is.InRange(38.0f, 48.0f), $"Elevation range out of bounds: {range:0.1} m");
-            // Highest point within 150m of S/F (either s < 150 or s > 4309 - 150)
-            bool peakNearSF = sAtMax <= 150.0f || sAtMax >= (config.total_length_m - 150.0f);
-            Assert.That(peakNearSF, Is.True, $"Peak elevation is at s={sAtMax:0.1} m, not within 150m of S/F");
-
-            // Lowest point near T11-T12 (around s in [2900, 3350] m)
-            Assert.That(sAtMin, Is.InRange(2800f, 3400f), $"Lowest elevation is at s={sAtMin:0.1} m, expected in T11-T12 zone");
+            Assert.That(range, Is.InRange(40.0f, 46.0f), $"Elevation range out of bounds: {range:0.1} m");
+            Assert.That(maxGrad, Is.LessThanOrEqualTo(0.10f), $"Elevation gradient too steep: {maxGrad * 100:0.1}%");
+            Assert.That(sAtMax <= 150.0f || sAtMax >= (config.total_length_m - 150.0f), Is.True, $"Peak elevation expected near S/F, got s={sAtMax:0.1} m");
+            Assert.That(sAtMin, Is.InRange(2800f, 3400f), $"Lowest elevation expected near T11-T12, got s={sAtMin:0.1} m");
         }
 
-        // ── T6: Corner Table Validation ──────────────────────────────────────
+        // ── T6: Corner Table & Expected Real Directions ───────────────────────
         [Test]
-        public void T6_CornerTable_15Corners_Directions()
+        public void T6_CornerTableAndExpectedDirections()
         {
             Assert.That(config.corners.Count, Is.EqualTo(15), "Track must have exactly 15 corners");
 
-            Console.WriteLine($"T6 Corner Table: 15 corners verified in driving order:");
+            // Real circuit reference directions for key turns
+            var expectedDirs = new Dictionary<string, string>
+            {
+                { "T1",  "left"  },
+                { "T2",  "right" },
+                { "T3",  "left"  },
+                { "T12", "left"  },
+                { "T13", "left"  },
+                { "T14", "left"  },
+                { "T15", "left"  }
+            };
+
+            Console.WriteLine($"T6 Corner Table (15 corners in driving order):");
+            int matches = 0;
             for (int i = 0; i < config.corners.Count; i++)
             {
                 var c = config.corners[i];
                 Assert.That(c.number, Is.EqualTo(i + 1));
-                Console.WriteLine($"  Turn {c.number,2} ({c.name,-3}): apex_s={c.apex_s,6:F1}m, radius={c.radius_m,5:F1}m, dir={c.direction,-5}");
+                Assert.That(c.name, Is.EqualTo($"T{i + 1}"));
+
+                string expected = expectedDirs.ContainsKey(c.name) ? expectedDirs[c.name] : "-";
+                bool match = expected == "-" || expected == c.direction;
+                if (match) matches++;
+
+                Console.WriteLine($"  Turn {c.number,2} ({c.name,-3}): apex_s={c.apex_s,6:F1}m, radius={c.radius_m,5:F1}m, dir={c.direction,-5} (expected: {expected,-5})");
             }
 
-            // Real circuit verification: T1 left, T2 right, T3 left
-            Assert.That(config.corners[0].direction, Is.EqualTo("left"), "T1 must be left");
-            Assert.That(config.corners[1].direction, Is.EqualTo("right"), "T2 must be right");
-            Assert.That(config.corners[2].direction, Is.EqualTo("left"), "T3 must be left");
+            foreach (var kv in expectedDirs)
+            {
+                var c = config.corners.Find(x => x.name == kv.Key);
+                Assert.That(c, Is.Not.Null);
+                Assert.That(c.direction, Is.EqualTo(kv.Value), $"Corner {kv.Key} direction mismatch: got {c.direction}, expected {kv.Value}");
+            }
         }
 
         // ── T7: Sector Lengths ───────────────────────────────────────────────
@@ -358,35 +420,35 @@ namespace F1Sim.Tests
             float maxErrS = 0f;
             float maxErrOffset = 0f;
 
-            // Generate 1000 test points with known s and known lateral offset
             var queries = new (float px, float pz, float expectedS, float expectedOffset, int hintIdx)[testCount];
             for (int k = 0; k < testCount; k++)
             {
                 int sampleIdx = rng.Next(0, config.samples.Count);
                 var smp = config.samples[sampleIdx];
+                int nextIdx = (sampleIdx + 1) % config.samples.Count;
 
-                // Known offset between -6m and +6m
+                float tSeg = (float)(rng.NextDouble() * 0.8 + 0.1); // along interior of segment
+                float knownS = smp.s + tSeg * config.sample_spacing_m;
                 float trueOffset = (float)(rng.NextDouble() * 12.0 - 6.0);
 
-                int nextIdx = (sampleIdx + 1) % config.samples.Count;
                 float tx = config.samples[nextIdx].x - smp.x;
                 float tz = config.samples[nextIdx].z - smp.z;
                 float tLen = MathF.Sqrt(tx * tx + tz * tz);
                 tx /= tLen; tz /= tLen;
 
-                // Left normal
                 float nx = -tz;
                 float nz = tx;
 
-                float testPx = smp.x + trueOffset * nx;
-                float testPz = smp.z + trueOffset * nz;
+                float baseX = smp.x + tSeg * (config.samples[nextIdx].x - smp.x);
+                float baseZ = smp.z + tSeg * (config.samples[nextIdx].z - smp.z);
 
-                // Local hint within +- 10 indices
+                float testPx = baseX + trueOffset * nx;
+                float testPz = baseZ + trueOffset * nz;
+
                 int hint = (sampleIdx + rng.Next(-5, 6) + config.samples.Count) % config.samples.Count;
-                queries[k] = (testPx, testPz, smp.s, trueOffset, hint);
+                queries[k] = (testPx, testPz, knownS, trueOffset, hint);
             }
 
-            // Warmup
             for (int k = 0; k < 100; k++)
                 spline.Query(queries[k].px, queries[k].pz, queries[k].hintIdx);
 
@@ -421,28 +483,194 @@ namespace F1Sim.Tests
             float kerbW = 1.0f;
             float gravelW = 8.0f;
 
-            // In T1 (left turn -> inside is positive offset)
             float sCorner = config.corners[0].apex_s;
             float kCorner = 0.033f; // left turn
 
-            // 1. Center of track -> Asphalt
             var surfAsphalt = spline.ClassifySurface(sCorner, 0.0f, 14.0f, kCorner);
             Assert.That(surfAsphalt, Is.EqualTo(SurfaceType.Asphalt));
 
-            // 2. 7.5m left inside -> Kerb (halfWidth < offset <= halfWidth + 1m)
             var surfKerb = spline.ClassifySurface(sCorner, halfWidth + 0.5f, 14.0f, kCorner);
             Assert.That(surfKerb, Is.EqualTo(SurfaceType.Kerb));
 
-            // 3. 10.0m left -> Gravel (halfWidth + kerbW < offset <= halfWidth + kerbW + gravelW)
             var surfGravel = spline.ClassifySurface(sCorner, halfWidth + kerbW + 2.0f, 14.0f, kCorner);
             Assert.That(surfGravel, Is.EqualTo(SurfaceType.Gravel));
 
-            // 4. 20.0m left -> Grass
             var surfGrass = spline.ClassifySurface(sCorner, halfWidth + kerbW + gravelW + 5.0f, 14.0f, kCorner);
             Assert.That(surfGrass, Is.EqualTo(SurfaceType.Grass));
 
             Console.WriteLine($"T9 Surface Classification: Verified Asphalt, Kerb, Gravel, Grass at expected offsets.");
         }
+
+        // ── T10: Spawn Slot Position & Tangent Heading ────────────────────────
+        [Test]
+        public void T10_SpawnSlot_PositionAndTangentHeading()
+        {
+            var sp = config.spawn_slot;
+            Assert.That(sp, Is.Not.Null, "Spawn slot must be present");
+            Assert.That(sp.s, Is.EqualTo(4299.0f).Within(0.1f), "Spawn slot must be placed at s = 4299.0 m (10m behind S/F)");
+
+            var q = spline.Query(sp.x, sp.z);
+            float sDiff = MathF.Abs(q.s - 4299.0f);
+            if (sDiff > config.total_length_m * 0.5f) sDiff = config.total_length_m - sDiff;
+
+            // Track tangent heading at spawn point (deg)
+            float tangentYawDeg = q.headingRad * (180.0f / MathF.PI);
+            float headingDiff = MathF.Abs(sp.yaw_deg - tangentYawDeg);
+            if (headingDiff > 180.0f) headingDiff = 360.0f - headingDiff;
+
+            Console.WriteLine($"T10 Spawn Slot: s={q.s:0.2f}m (diff={sDiff:0.000}m, limit <= 0.5m), yaw={sp.yaw_deg:0.2}° vs tangent={tangentYawDeg:0.2}° (diff={headingDiff:0.00}°, limit <= 2°)");
+            Assert.That(sDiff, Is.LessThanOrEqualTo(0.5f), $"Query(spawn).s deviates from 4299m by {sDiff:0.000} m");
+            Assert.That(headingDiff, Is.LessThanOrEqualTo(2.0f), $"Spawn yaw deviates from track tangent by {headingDiff:0.00}°");
+        }
+
+        // ── T11: Every Sample Query(sample).s within 0.5m ─────────────────────
+        [Test]
+        public void T11_QuerySampleS_MatchesEverySampleWithin0_5m()
+        {
+            float maxDiff = 0f;
+            int worstIdx = 0;
+
+            for (int i = 0; i < config.samples.Count; i++)
+            {
+                var smp = config.samples[i];
+                var q = spline.Query(smp.x, smp.z, i);
+
+                float diff = MathF.Abs(q.s - smp.s);
+                if (diff > config.total_length_m * 0.5f) diff = config.total_length_m - diff;
+
+                if (diff > maxDiff)
+                {
+                    maxDiff = diff;
+                    worstIdx = i;
+                }
+            }
+
+            Console.WriteLine($"T11 Query All Samples: Max s difference={maxDiff:0.000}m at sample #{worstIdx} (limit <= 0.5m)");
+            Assert.That(maxDiff, Is.LessThanOrEqualTo(0.5f), $"Query s error exceeds 0.5m at sample #{worstIdx}: {maxDiff:0.000} m");
+        }
+
+        // ── T12: LapTimer 200 km/h Lap, Sector Sum & Invalidation ─────────────
+        [Test]
+        public void T12_LapTimer_200Kmh_LapAndSectors()
+        {
+            var timer = new LapTimer(config);
+            float speedMs = 200f / 3.6f;
+            float dt = 1f / 120f;
+            float expectedLapTime = config.total_length_m / speedMs; // ~77.562s
+
+            float currentS = 0f;
+            timer.Reset(currentS);
+
+            // Run 1 full lap + 1 step
+            float simTime = 0f;
+            while (simTime < expectedLapTime + 1.0f)
+            {
+                currentS = (currentS + speedMs * dt) % config.total_length_m;
+                var q = spline.QueryAtS(currentS);
+                timer.Step(dt, currentS, q.headingRad, q.headingRad, false);
+                simTime += dt;
+
+                if (timer.LastLapTime > 0f) break;
+            }
+
+            Console.WriteLine($"T12 LapTimer: LastLapTime={timer.LastLapTime:F3}s vs Expected={expectedLapTime:F3}s, S1={timer.LastS1Time:F3}s, S2={timer.LastS2Time:F3}s, S3={timer.LastS3Time:F3}s");
+            Assert.That(MathF.Abs(timer.LastLapTime - expectedLapTime), Is.LessThan(0.05f), $"Lap time mismatch: {timer.LastLapTime:F3}s vs {expectedLapTime:F3}s");
+
+            float sectorSum = timer.LastS1Time + timer.LastS2Time + timer.LastS3Time;
+            Assert.That(MathF.Abs(sectorSum - timer.LastLapTime), Is.LessThan(0.05f), $"Sectors do not sum to lap time: sum={sectorSum:F3}s, lap={timer.LastLapTime:F3}s");
+
+            // Test skipping sector splits (e.g. starting mid-lap and crossing S/F without S1/S2)
+            var timerSkip = new LapTimer(config);
+            float midTrackS = config.sectors[1].end_s + 50f; // after S2
+            timerSkip.Reset(midTrackS);
+            timerSkip.Step(dt, midTrackS, 0f, 0f, false);
+            timerSkip.Step(dt, config.total_length_m - 5f, 0f, 0f, false);
+            // Finish lap crossing S/F without passing S1 or S2
+            timerSkip.Step(dt, 10f, 0f, 0f, false);
+            Assert.That(timerSkip.LastLapValid, Is.False, "Crossing S/F without passing splits must invalidate completed lap");
+
+            // Test all wheels off track invalidates lap
+            var timerOff = new LapTimer(config);
+            timerOff.Reset(100f);
+            timerOff.Step(dt, 100f, 0f, 0f, true); // off track
+            Assert.That(timerOff.IsLapValid, Is.False, "All wheels off track must invalidate lap");
+
+            // Test manual invalidation
+            var timerManual = new LapTimer(config);
+            timerManual.Reset(0f);
+            timerManual.InvalidateLap();
+            Assert.That(timerManual.IsLapValid, Is.False, "Manual invalidation must flag current lap invalid");
+
+            // Test wrong-way detection
+            var timerWrong = new LapTimer(config);
+            timerWrong.Reset(100f);
+            timerWrong.Step(dt, 100f, 0f, 0f, false);
+            // Facing backward (> 120 deg = > 2.09 rad) for 2.1 s
+            for (int i = 0; i < (int)(2.1f / dt); i++)
+            {
+                timerWrong.Step(dt, 100f, MathF.PI, 0f, false);
+            }
+            Assert.That(timerWrong.IsWrongWay, Is.True, "Wrong way detection must trigger after 2s of driving opposite to tangent");
+        }
+
+        // ── T13: Slope Physics (Downhill vs Uphill Acceleration) ───────────────
+        [Test]
+        public void T13_SlopePhysics_DownhillVsUphill()
+        {
+            var p = new CarParams();
+            var vUp = new VehicleDynamics(p);
+            var vDown = new VehicleDynamics(p);
+
+            float slope5Pct = 0.05f;
+            float pitchRad = MathF.Atan(slope5Pct);
+            float dt = 1f / 120f;
+
+            vUp.trackPitchRad = pitchRad;    // uphill
+            vDown.trackPitchRad = -pitchRad; // downhill
+
+            // Run coasting steps holding speed constant so low-pass filtered Ax converges to steady state
+            for (int i = 0; i < 40; i++)
+            {
+                vUp.Vx = 100f / 3.6f;
+                vDown.Vx = 100f / 3.6f;
+                vUp.Step(dt, 0f, 0f, 0f);
+                vDown.Step(dt, 0f, 0f, 0f);
+            }
+
+            float g = 9.81f;
+            float expectedDiffAcc = 2.0f * g * MathF.Sin(pitchRad); // (a_down - a_up)
+            float measuredDiffAcc = (vDown.Ax - vUp.Ax);
+
+            Console.WriteLine($"T13 Slope Physics: diffAcc={measuredDiffAcc:F4} m/s^2 vs expected={expectedDiffAcc:F4} m/s^2 (5% slope)");
+            Assert.That(vDown.Ax, Is.GreaterThan(vUp.Ax), "Downhill acceleration must be higher than uphill");
+            Assert.That(MathF.Abs(measuredDiffAcc - expectedDiffAcc) / expectedDiffAcc, Is.LessThan(0.05f), "Slope acceleration diff must match 2*g*sin(pitch) within 5%");
+        }
+
+        // ── T14: Surface Grip & Drag (Grass vs Asphalt) ────────────────────────
+        [Test]
+        public void T14_SurfaceGripAndDrag_Effects()
+        {
+            var p = new CarParams();
+            var vAsphalt = new VehicleDynamics(p);
+            var vGrass = new VehicleDynamics(p);
+
+            float dt = 1f / 120f;
+            vAsphalt.Vx = 150f / 3.6f;
+            vGrass.Vx = 150f / 3.6f;
+
+            // vAsphalt default surface drag 1.0
+            // vGrass on grass (2 wheels on grass, grass drag = 1.80)
+            vGrass.surfaceDragRL = 1.80f;
+            vGrass.surfaceDragRR = 1.80f;
+            vGrass.surfaceGripRL = 0.55f;
+            vGrass.surfaceGripRR = 0.55f;
+
+            // Coast down (throttle 0, brake 0)
+            vAsphalt.Step(dt, 0f, 0f, 0f);
+            vGrass.Step(dt, 0f, 0f, 0f);
+
+            Console.WriteLine($"T14 Surface Drag Decel: Asphalt Ax={vAsphalt.Ax:F3} m/s^2, Grass Ax={vGrass.Ax:F3} m/s^2");
+            Assert.That(vGrass.Ax, Is.LessThan(vAsphalt.Ax), "Car with wheels on grass must experience more deceleration drag than pure asphalt");
+        }
     }
 }
-

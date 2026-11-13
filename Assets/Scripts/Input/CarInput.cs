@@ -6,27 +6,52 @@ public class CarInput : MonoBehaviour
     public float Steer, Throttle, Brake; // Steer: +1 = right
 
     [Header("Version")]
-    public const int CURRENT_INPUT_VERSION = 1;
+    public const int CURRENT_INPUT_VERSION = 14;
     public int inputParamsVersion;
 
-    [Header("Tilt")]
+    public enum ControlMode { Tilt, Touch }
+
+    [Header("Control Mode")]
+    public ControlMode controlMode = ControlMode.Tilt;
+
+    [Header("Tilt & Steering Configuration")]
     public bool useTilt = true;
-    public float maxTiltDeg = 40f;
-    public float deadzoneDeg = 3f;
-    public float steerSmoothing = 10f;
-    public float tiltFilter = 8f;
-    public float minPlaneG = 0.12f;
-    public float steerExpo = 1.4f;
+    public float maxTiltDeg = 90.0f;       // Physical device roll for full lock (90 deg full phone tilt)
+    public float deadzoneDeg = 4.5f;       // Stable deadzone preventing accidental drift (4.5 deg)
+    public float steerSmoothing = 14.0f;   // Responsive yet smooth interpolation rate (s^-1)
+    public float tiltFilter = 20.0f;       // Accelerometer low-pass filter rate (s^-1)
+    public float minPlaneG = 0.08f;
+    public float steerExpo = 1.40f;        // Progressive curve: steer is at most 90 deg even at full tilt
     public bool invertTilt = false;
     public float calibrationDelay = 3f;
+
+    [Header("Sensitivity Slider (0 to 10)")]
+    [Range(0, 10)]
+    public float sensitivitySlider = 2.0f; // Level 2 default (90 deg full tilt = at most 90 deg steer)
+
+    [Header("Speed-Sensitive Steering Lock Curve")]
+    public bool useSpeedSensitiveLock = false;   // Disabled in input layer: VehicleDynamics handles grip limits directly
+    public float speedLockMinMultiplier = 1.0f;  // Full command authority at speed so player can carry speed in corners
+    public float speedLockMaxKmh = 320f;
 
     [Header("Tilt Auto-Center")]
     public bool autoCenter = true;
     public float autoCenterRate = 2f;       // deg/s
-    public float autoCenterWindowDeg = 10f; // |relDeg| must be below this
+    public float autoCenterWindowDeg = 8f;  // |relDeg| must be below this
+
+    [Header("Touch Steer Rates")]
+    public float touchSteerAttackRate = 4.0f;   // Smooth turn-in rate (s^-1)
+    public float touchSteerReleaseRate = 14.0f; // Rapid auto-centering release rate (s^-1)
+    float touchSteerCurrent = 0f;
+    bool isTouchSteeringLeft = false;
+    bool isTouchSteeringRight = false;
 
     [Header("Pedals")]
-    public bool showZones = true;
+    public bool showZones = false;
+    [Range(0.08f, 0.40f)] public float pedalWidthRatio = 0.18f;
+    [Range(0.15f, 0.60f)] public float pedalHeightRatio = 0.35f;
+    [Range(0.01f, 0.08f)] public float pedalOpacity = 0.04f;
+    [Range(0.02f, 0.15f)] public float pedalActiveOpacity = 0.08f;
 
     // State
     Vector3 lastAcc;
@@ -43,35 +68,76 @@ public class CarInput : MonoBehaviour
 
     void Awake()
     {
+        // Load persisted preferences
+        controlMode = (ControlMode)PlayerPrefs.GetInt("F1Sig_ControlMode", (int)ControlMode.Tilt);
+        useTilt = (controlMode == ControlMode.Tilt);
+        invertTilt = PlayerPrefs.GetInt("F1Sig_InvertTilt", 0) == 1;
+        showZones = PlayerPrefs.GetInt("F1Sig_ShowZones", 0) == 1;
+        sensitivitySlider = PlayerPrefs.GetFloat("F1Sig_SteerSensSlider", 2.0f);
+        UpdateMaxTiltFromSlider();
+
+        // Purge legacy tune keys if present
+        if (PlayerPrefs.HasKey("F1Sig_Tune_MaxTilt"))
+        {
+            PlayerPrefs.DeleteKey("F1Sig_Tune_MaxTilt");
+            PlayerPrefs.DeleteKey("F1Sig_Tune_HiSpdMult");
+            PlayerPrefs.DeleteKey("F1Sig_Tune_Expo");
+            PlayerPrefs.DeleteKey("F1Sig_Tune_Smoothing");
+            PlayerPrefs.DeleteKey("F1Sig_Tune_Deadzone");
+            PlayerPrefs.Save();
+        }
+
         if (inputParamsVersion != CURRENT_INPUT_VERSION)
         {
-            Debug.LogWarning($"[CarInput] Config version mismatch (found v{inputParamsVersion}, current v{CURRENT_INPUT_VERSION}). Resetting input tunables to defaults:\n" +
-                             $"  maxTiltDeg: {maxTiltDeg} -> 40\n" +
-                             $"  deadzoneDeg: {deadzoneDeg} -> 3\n" +
-                             $"  steerExpo: {steerExpo} -> 1.4\n" +
-                             $"  steerSmoothing: {steerSmoothing} -> 10\n" +
-                             $"  tiltFilter: {tiltFilter} -> 8\n" +
-                             $"  minPlaneG: {minPlaneG} -> 0.12\n" +
-                             $"  autoCenter: {autoCenter} -> True\n" +
-                             $"  autoCenterRate: {autoCenterRate} -> 2\n" +
-                             $"  autoCenterWindowDeg: {autoCenterWindowDeg} -> 10");
+            Debug.LogWarning($"[CarInput] Config version mismatch (found v{inputParamsVersion}, current v{CURRENT_INPUT_VERSION}). Applying at-most-90-deg steer configuration:\n" +
+                             $"  controlMode: TILT\n" +
+                             $"  maxTiltDeg: 90.0 (full phone tilt = at most 90 deg steer)\n" +
+                             $"  deadzoneDeg: 4.5\n" +
+                             $"  steerExpo: 1.40\n" +
+                             $"  invertTilt: False");
 
-            maxTiltDeg = 40f;
-            deadzoneDeg = 3f;
-            steerSmoothing = 10f;
-            tiltFilter = 8f;
-            minPlaneG = 0.12f;
-            steerExpo = 1.4f;
+            sensitivitySlider = 2.0f;
+            controlMode = ControlMode.Tilt;
+            useTilt = true;
             invertTilt = false;
+            PlayerPrefs.SetInt("F1Sig_ControlMode", (int)ControlMode.Tilt);
+            PlayerPrefs.SetFloat("F1Sig_SteerSensSlider", 2.0f);
+            PlayerPrefs.SetInt("F1Sig_InvertTilt", 0);
+            PlayerPrefs.Save();
+
+            UpdateMaxTiltFromSlider();
+            steerSmoothing = 14.0f;
+            tiltFilter = 20.0f;
+            useSpeedSensitiveLock = false;
+            speedLockMinMultiplier = 1.0f;
+            speedLockMaxKmh = 320f;
+            minPlaneG = 0.08f;
+            steerExpo = 1.40f;
             calibrationDelay = 3f;
             autoCenter = true;
             autoCenterRate = 2f;
-            autoCenterWindowDeg = 10f;
+            autoCenterWindowDeg = 8f;
+            touchSteerAttackRate = 4.0f;
+            touchSteerReleaseRate = 14.0f;
             inputParamsVersion = CURRENT_INPUT_VERSION;
 
             var c = GetComponent<CarController>();
             if (c != null) c.ShowResetBanner();
         }
+    }
+
+    /// <summary>
+    /// Remaps 0-10 slider:
+    /// Level 0 -> 95 deg (5.0 deg deadzone, calmest)
+    /// Level 2 -> 90 deg (4.5 deg deadzone, full phone tilt = at most 90 deg steer)
+    /// Level 5 -> 80 deg (4.0 deg deadzone)
+    /// Level 10 -> 65 deg (3.0 deg deadzone)
+    /// </summary>
+    public void UpdateMaxTiltFromSlider()
+    {
+        float t = Mathf.Clamp01(sensitivitySlider / 10f);
+        maxTiltDeg = Mathf.Lerp(95f, 65f, t);
+        deadzoneDeg = Mathf.Lerp(5.0f, 3.0f, t);
     }
 
     void OnEnable()
@@ -103,6 +169,9 @@ public class CarInput : MonoBehaviour
         Throttle = 0f;
         Brake = 0f;
         steerTarget = 0f;
+        touchSteerCurrent = 0f;
+        isTouchSteeringLeft = false;
+        isTouchSteeringRight = false;
         relDeg = 0f;
         autoCenterTimer = 0f;
     }
@@ -110,13 +179,91 @@ public class CarInput : MonoBehaviour
     void Update()
     {
         float W = Screen.width, H = Screen.height;
-        brakeZone    = new Rect(W * 0.04f, 0f, W * 0.36f, H * 0.65f);
-        throttleZone = new Rect(W * 0.60f, 0f, W * 0.36f, H * 0.65f);
+        float pW = W * pedalWidthRatio;
+        float pH = H * pedalHeightRatio;
+        brakeZone    = new Rect(W * 0.03f, 0f, pW, pH);
+        throttleZone = new Rect(W * (1.0f - 0.03f - pedalWidthRatio), 0f, pW, pH);
 
         float dt = Time.deltaTime;
         steerTarget = 0f;
         float thrTarget = 0f, brkTarget = 0f;
+        isTouchSteeringLeft = false;
+        isTouchSteeringRight = false;
 
+        // Process Touchscreen touches
+        var ts = Touchscreen.current;
+        if (ts != null)
+        {
+            foreach (var touch in ts.touches)
+            {
+                if (!touch.press.isPressed) continue;
+                Vector2 p = touch.position.ReadValue();
+                if (throttleZone.Contains(p))
+                {
+                    thrTarget = 1f;
+                }
+                else if (brakeZone.Contains(p))
+                {
+                    brkTarget = 1f;
+                }
+                else if (controlMode == ControlMode.Touch)
+                {
+                    if (p.x < W * 0.5f) isTouchSteeringLeft = true;
+                    else isTouchSteeringRight = true;
+                }
+            }
+        }
+
+        // Process Mouse input (allows testing Touch mode inside Unity Editor)
+        var mouse = Mouse.current;
+        if (mouse != null && mouse.leftButton.isPressed)
+        {
+            Vector2 mp = mouse.position.ReadValue();
+            if (throttleZone.Contains(mp))
+            {
+                thrTarget = 1f;
+            }
+            else if (brakeZone.Contains(mp))
+            {
+                brkTarget = 1f;
+            }
+            else if (controlMode == ControlMode.Touch)
+            {
+                if (mp.x < W * 0.5f) isTouchSteeringLeft = true;
+                else isTouchSteeringRight = true;
+            }
+        }
+
+        // Speed scaling multiplier
+        float speedKmh = ctrl != null ? ctrl.SpeedKmh : 0f;
+        float speedMult = 1f;
+        if (useSpeedSensitiveLock)
+        {
+            speedMult = Mathf.Clamp(1.0f - (1.0f - speedLockMinMultiplier) * (speedKmh / speedLockMaxKmh), speedLockMinMultiplier, 1.0f);
+        }
+
+        // ── Touch Steering Mode (Real Racing 3 Touch A/B) ────────────────
+        if (controlMode == ControlMode.Touch)
+        {
+            float targetTouch = 0f;
+            if (isTouchSteeringLeft && !isTouchSteeringRight) targetTouch = -1f;
+            else if (isTouchSteeringRight && !isTouchSteeringLeft) targetTouch = 1f;
+
+            if (targetTouch != 0f)
+            {
+                touchSteerCurrent = Mathf.MoveTowards(touchSteerCurrent, targetTouch, touchSteerAttackRate * dt);
+            }
+            else
+            {
+                touchSteerCurrent = Mathf.MoveTowards(touchSteerCurrent, 0f, touchSteerReleaseRate * dt);
+            }
+
+            float absTouch = Mathf.Abs(touchSteerCurrent);
+            float sNorm = steerExpo != 1f ? Mathf.Pow(absTouch, steerExpo) : absTouch;
+            steerTarget = Mathf.Sign(touchSteerCurrent) * sNorm * speedMult;
+        }
+
+        // ── Tilt Steering Mode (Real Racing 3 Tilt A/B) ──────────────────
         var acc = Accelerometer.current;
         if (acc != null)
         {
@@ -124,7 +271,7 @@ public class CarInput : MonoBehaviour
             lastAcc = a;
             Vector2 g2 = new Vector2(a.x, a.y);
 
-            // Low-pass filter the gravity vector (exponential, tiltFilter ≈ 8/s)
+            // Low-pass filter the gravity vector
             if (!tiltSeeded)
             {
                 gravXY = g2;
@@ -150,24 +297,26 @@ public class CarInput : MonoBehaviour
                 }
 
                 relDeg = calibrated
-                    ? Mathf.DeltaAngle(offsetDeg, rollDeg) * (invertTilt ? -1f : 1f)
+                    ? -Mathf.DeltaAngle(offsetDeg, rollDeg) * (invertTilt ? -1f : 1f)
                     : 0f;
 
                 // ── Auto-center: drift offsetDeg toward current roll ──────────
                 if (autoCenter && calibrated)
                 {
-                    bool condSpeed = ctrl != null && ctrl.SpeedKmh > 100f;
-                    bool condLatG  = ctrl != null && Mathf.Abs(ctrl.LatG) < 0.3f;
+                    bool condSpeed = ctrl != null && ctrl.SpeedKmh > 50f;
+                    bool condLatG  = ctrl != null && Mathf.Abs(ctrl.LatG) < 0.25f;
                     bool condTilt  = Mathf.Abs(relDeg) < autoCenterWindowDeg;
 
-                    if (condSpeed && condLatG && condTilt)
+                    // Also allow auto-centering if the car is stationary (e.g. stopped on grid or in pits)
+                    bool condStationary = ctrl != null && ctrl.SpeedKmh < 2f && Mathf.Abs(relDeg) < autoCenterWindowDeg;
+
+                    if ((condSpeed && condLatG && condTilt) || condStationary)
                     {
                         autoCenterTimer += dt;
-                        if (autoCenterTimer >= 1.5f)
+                        if (autoCenterTimer >= 1.0f)
                         {
                             offsetDeg = Mathf.MoveTowards(offsetDeg, rollDeg, autoCenterRate * dt);
-                            // Recompute relDeg after offset update
-                            relDeg = Mathf.DeltaAngle(offsetDeg, rollDeg) * (invertTilt ? -1f : 1f);
+                            relDeg = -Mathf.DeltaAngle(offsetDeg, rollDeg) * (invertTilt ? -1f : 1f);
                         }
                     }
                     else
@@ -180,11 +329,10 @@ public class CarInput : MonoBehaviour
             {
                 validContinuousTimer = 0f;
                 autoCenterTimer = 0f;
-                // Decay relative tilt toward 0 at 120 deg/s instead of freezing
                 relDeg = Mathf.MoveTowards(relDeg, 0f, 120f * dt);
             }
 
-            if (useTilt && calibrated)
+            if (controlMode == ControlMode.Tilt && useTilt && calibrated)
             {
                 float absRel = Mathf.Abs(relDeg);
                 if (absRel <= deadzoneDeg)
@@ -194,25 +342,17 @@ public class CarInput : MonoBehaviour
                 else
                 {
                     float span = Mathf.Max(0.001f, maxTiltDeg - deadzoneDeg);
-                    float t = Mathf.Clamp(Mathf.Sign(relDeg) * (absRel - deadzoneDeg) / span, -1f, 1f);
-                    steerTarget = Mathf.Sign(t) * Mathf.Pow(Mathf.Abs(t), steerExpo);
+                    float sLinear = Mathf.Clamp01((absRel - deadzoneDeg) / span);
+                    float sNorm = steerExpo != 1f ? Mathf.Pow(sLinear, steerExpo) : sLinear;
+                    float sDir = Mathf.Sign(relDeg);
+
+                    steerTarget = sDir * sNorm * speedMult;
                 }
             }
         }
 
-        var ts = Touchscreen.current;
-        if (ts != null)
-        {
-            foreach (var touch in ts.touches)
-            {
-                if (!touch.press.isPressed) continue;
-                Vector2 p = touch.position.ReadValue();
-                if (throttleZone.Contains(p)) thrTarget = 1f;
-                else if (brakeZone.Contains(p)) brkTarget = 1f;
-            }
-        }
-
-        var kb = Keyboard.current; // editor fallback
+        // Keyboard fallback (for editor testing)
+        var kb = Keyboard.current;
         if (kb != null)
         {
             if (kb.dKey.isPressed) steerTarget =  1f;
@@ -221,6 +361,7 @@ public class CarInput : MonoBehaviour
             if (kb.sKey.isPressed) brkTarget = 1f;
         }
 
+        // Smooth output to vehicle steering rack
         Steer    = Mathf.Lerp(Steer,    steerTarget, 1f - Mathf.Exp(-steerSmoothing * dt));
         Throttle = Mathf.MoveTowards(Throttle, thrTarget, (thrTarget > Throttle ? 4f : 8f) * dt);
         Brake    = Mathf.MoveTowards(Brake,    brkTarget, (brkTarget > Brake    ? 6f : 10f) * dt);
@@ -228,35 +369,154 @@ public class CarInput : MonoBehaviour
 
     void OnGUI()
     {
+        Matrix4x4 oldMat = GUI.matrix;
         float s = (Screen.dpi > 0 ? Screen.dpi : 320f) / 160f;
         GUI.matrix = Matrix4x4.Scale(new Vector3(s, s, 1f));
 
-        // Calibrate button: centred at top
-        if (GUI.Button(new Rect(Screen.width / s * 0.5f - 60f, 10f, 120f, 40f), "Calibrate"))
-            Calibrate();
+        float sw = Screen.width / s;
+        float centerBtnX = sw * 0.5f;
+        float topBtnY = 10f;
+        float topBtnH = 36f;
 
-        // Sensitivity buttons [Sens -] and [Sens +] next to Calibrate button
-        float sensBtnY = 10f;
-        float sensBtnH = 40f;
-        float centerBtnX = Screen.width / s * 0.5f;
-        if (GUI.Button(new Rect(centerBtnX - 145f, sensBtnY, 75f, sensBtnH), "Sens -"))
-            maxTiltDeg = Mathf.Clamp(maxTiltDeg - 5f, 25f, 55f);
-        if (GUI.Button(new Rect(centerBtnX + 70f, sensBtnY, 75f, sensBtnH), "Sens +"))
-            maxTiltDeg = Mathf.Clamp(maxTiltDeg + 5f, 25f, 55f);
+        // 1. Control Mode Toggle [Tilt] / [Touch]
+        string modeLabel = controlMode == ControlMode.Tilt ? "Mode: TILT" : "Mode: TOUCH";
+        if (GUI.Button(new Rect(centerBtnX - 165f, topBtnY, 95f, topBtnH), modeLabel))
+        {
+            controlMode = controlMode == ControlMode.Tilt ? ControlMode.Touch : ControlMode.Tilt;
+            useTilt = (controlMode == ControlMode.Tilt);
+            PlayerPrefs.SetInt("F1Sig_ControlMode", (int)controlMode);
+            PlayerPrefs.Save();
+        }
 
-        // Tilt debug line: shown below the main HUD panel (CarController occupies top-left)
-        // Positioned 170 dp from top to avoid overlap with the 5-row panel (~150 dp tall)
-        string stateText = isTiltValid ? "VALID" : "TILT INVALID";
-        string calibText = calibrated ? "" : $"  HOLD LEVEL... {Mathf.Max(0f, calibrateAt - Time.time):0.0}s";
-        GUI.Label(new Rect(8f, 170f, 520f, 50f),
-            $"acc x {lastAcc.x:0.00} y {lastAcc.y:0.00} z {lastAcc.z:0.00}  plane {gravXY.magnitude:0.00} [{stateText}]\n" +
-            $"roll {rollDeg:0.0}°  tilt-steer {relDeg:0.0}°  Sens {maxTiltDeg:0}°{calibText}");
+        // 2. Mode-specific top buttons
+        if (controlMode == ControlMode.Tilt)
+        {
+            // Calibrate button
+            if (GUI.Button(new Rect(centerBtnX - 65f, topBtnY, 75f, topBtnH), "Calibrate"))
+                Calibrate();
+
+            // Sensitivity buttons [Sens -] and [Sens +]
+            if (GUI.Button(new Rect(centerBtnX + 15f, topBtnY, 70f, topBtnH), $"Sens - ({sensitivitySlider:0})"))
+            {
+                sensitivitySlider = Mathf.Clamp(sensitivitySlider - 1f, 0f, 10f);
+                UpdateMaxTiltFromSlider();
+                PlayerPrefs.SetFloat("F1Sig_SteerSensSlider", sensitivitySlider);
+                PlayerPrefs.Save();
+            }
+            if (GUI.Button(new Rect(centerBtnX + 90f, topBtnY, 70f, topBtnH), $"Sens + ({sensitivitySlider:0})"))
+            {
+                sensitivitySlider = Mathf.Clamp(sensitivitySlider + 1f, 0f, 10f);
+                UpdateMaxTiltFromSlider();
+                PlayerPrefs.SetFloat("F1Sig_SteerSensSlider", sensitivitySlider);
+                PlayerPrefs.Save();
+            }
+            // Invert tilt toggle
+            if (GUI.Button(new Rect(centerBtnX + 165f, topBtnY, 65f, topBtnH), invertTilt ? "Inv: ON" : "Inv: OFF"))
+            {
+                invertTilt = !invertTilt;
+                PlayerPrefs.SetInt("F1Sig_InvertTilt", invertTilt ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+        }
+        else // Touch Mode
+        {
+            // Zones toggle button
+            if (GUI.Button(new Rect(centerBtnX - 65f, topBtnY, 90f, topBtnH), "Zones " + (showZones ? "ON" : "OFF")))
+            {
+                showZones = !showZones;
+                PlayerPrefs.SetInt("F1Sig_ShowZones", showZones ? 1 : 0);
+                PlayerPrefs.Save();
+            }
+            // Sensitivity for touch
+            if (GUI.Button(new Rect(centerBtnX + 30f, topBtnY, 70f, topBtnH), $"Sens - ({sensitivitySlider:0})"))
+            {
+                sensitivitySlider = Mathf.Clamp(sensitivitySlider - 1f, 0f, 10f);
+                touchSteerAttackRate = Mathf.Lerp(2.5f, 5.0f, sensitivitySlider / 10f);
+                PlayerPrefs.SetFloat("F1Sig_SteerSensSlider", sensitivitySlider);
+                PlayerPrefs.Save();
+            }
+            if (GUI.Button(new Rect(centerBtnX + 105f, topBtnY, 70f, topBtnH), $"Sens + ({sensitivitySlider:0})"))
+            {
+                sensitivitySlider = Mathf.Clamp(sensitivitySlider + 1f, 0f, 10f);
+                touchSteerAttackRate = Mathf.Lerp(2.5f, 5.0f, sensitivitySlider / 10f);
+                PlayerPrefs.SetFloat("F1Sig_SteerSensSlider", sensitivitySlider);
+                PlayerPrefs.Save();
+            }
+        }
+
+        // Steer HUD status readout (below telemetry box)
+        if (controlMode == ControlMode.Tilt)
+        {
+            string stateText = isTiltValid ? "VALID" : "TILT INVALID";
+            string calibText = calibrated ? "" : $"  HOLD LEVEL... {Mathf.Max(0f, calibrateAt - Time.time):0.0}s";
+            float steerWheelDeg = Steer * 90f; // F1 steering wheel angle (-90 to +90 deg max)
+            GUI.Label(new Rect(8f, 170f, 520f, 50f),
+                $"acc x {lastAcc.x:0.00} y {lastAcc.y:0.00} z {lastAcc.z:0.00}  plane {gravXY.magnitude:0.00} [{stateText}]\n" +
+                $"roll {rollDeg:0.0}°  relDeg {relDeg:0.0}°  MaxTilt {maxTiltDeg:0.0}°  SteerWheel {steerWheelDeg:0.0}° (Cmd {Steer:0.00}){calibText}");
+        }
+        else
+        {
+            string touchState = isTouchSteeringLeft ? "◄ TURNING LEFT" : (isTouchSteeringRight ? "TURNING RIGHT ►" : "CENTERED");
+            GUI.Label(new Rect(8f, 170f, 520f, 50f),
+                $"TOUCH STEER [RR3 Touch A] — State: {touchState}\n" +
+                $"SteerCmd: {Steer:0.00}  Target: {touchSteerCurrent:0.00}  Sens: {sensitivitySlider:0}");
+        }
 
         if (showZones)
         {
-            GUI.Box(ToGui(brakeZone, s),    "BRAKE");
-            GUI.Box(ToGui(throttleZone, s), "THROTTLE");
+            Color prevColor = GUI.color;
+            if (_zonePixel == null)
+            {
+                _zonePixel = new Texture2D(1, 1);
+                _zonePixel.SetPixel(0, 0, Color.white);
+                _zonePixel.Apply();
+            }
+
+            DrawTouchZone(ToGui(brakeZone, s), Brake > 0.05f, "BRAKE", new Color(1f, 0.35f, 0.35f));
+            DrawTouchZone(ToGui(throttleZone, s), Throttle > 0.05f, "THROTTLE", new Color(0.35f, 1f, 0.45f));
+
+            if (controlMode == ControlMode.Touch)
+            {
+                float sh = Screen.height / s;
+                Rect leftSteerRect = new Rect(10f, sh * 0.35f, 100f, 60f);
+                Rect rightSteerRect = new Rect(sw - 110f, sh * 0.35f, 100f, 60f);
+                DrawTouchZone(leftSteerRect, isTouchSteeringLeft, "◀ STEER L", new Color(0.4f, 0.7f, 1.0f));
+                DrawTouchZone(rightSteerRect, isTouchSteeringRight, "STEER R ▶", new Color(0.4f, 0.7f, 1.0f));
+            }
+
+            GUI.color = prevColor;
         }
+
+        GUI.matrix = oldMat;
+    }
+
+    static Texture2D _zonePixel;
+    void DrawTouchZone(Rect r, bool active, string label, Color accent)
+    {
+        float fillAlpha = active ? pedalActiveOpacity : pedalOpacity;
+        // Faint fill
+        GUI.color = new Color(accent.r, accent.g, accent.b, fillAlpha);
+        GUI.DrawTexture(r, _zonePixel);
+
+        // Thin outline only
+        float borderAlpha = active ? 0.45f : 0.20f;
+        GUI.color = new Color(accent.r, accent.g, accent.b, borderAlpha);
+        float bw = 1.5f;
+        GUI.DrawTexture(new Rect(r.x, r.y, r.width, bw), _zonePixel);
+        GUI.DrawTexture(new Rect(r.x, r.yMax - bw, r.width, bw), _zonePixel);
+        GUI.DrawTexture(new Rect(r.x, r.y, bw, r.height), _zonePixel);
+        GUI.DrawTexture(new Rect(r.xMax - bw, r.y, bw, r.height), _zonePixel);
+
+        // Small subtle label
+        GUIStyle labelStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = 10,
+            alignment = TextAnchor.MiddleCenter,
+            fontStyle = active ? FontStyle.Bold : FontStyle.Normal
+        };
+        labelStyle.normal.textColor = new Color(1f, 1f, 1f, active ? 0.7f : 0.35f);
+        GUI.color = Color.white;
+        GUI.Label(r, label, labelStyle);
     }
 
     Rect ToGui(Rect z, float s) =>

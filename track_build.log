@@ -1,0 +1,46 @@
+VBCSCompilerPreWarmer: watching VBCSCompiler (PID 21048)
+VBCSCompilerPreWarmer: pre-warm launched (dotnet PID 27880)
+VBCSCompiler prewarm took 69.79 ms
+[Licensing::Module] Trying to connect to existing licensing client channel...
+Built from '6000.6/respin/6000.6.8f1-b6138bef9630' branch; Version is '6000.6.8f1 (237b6593792b) revision 2325349'; Using compiler version '194234433'; Build Type 'Release'
+OS: 'Windows 11  (10.0.26300) CoreSingleLanguage' Language: 'en' Physical Memory: 16052 MB
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-Prasanna" at "2026-11-11T11:22:21.5541677Z"
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+System  architecture: x64
+Process architecture: x64
+Date: 2026-11-11T11:22:21Z
+[Licensing::Client] Code 10 while verifying Licensing Client signature (process Id: 13960, path: "C:/Program Files/WindowsApps/UnityTechnologies.UnityHub_3.22.6.65535_x64__2vrhnee42bhxm/app/UnityLicensingClient_V1/Unity.Licensing.Client.exe")
+[Licensing::Module] LicensingClient has failed validation; ignoring
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.18.3+d7ffd15
+  Session Id:              163b8de76f08449b8ae5fbbc26f41a7c
+  Correlation Id:          4141885e2e42247449a6070bea5bc827
+  External correlation Id: 3646922291242689025
+  Machine Id:              +b8bMDkz77oYqnIm8l87cEBzzKw=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-Prasanna" (connect: 0.00s, validation: 0.02s, handshake: 0.23s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-Prasanna-notifications" at "2026-11-11T11:22:21.7958788Z"
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: 13470000555573-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.01
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] Licensing Background thread has ended after 0.29s
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.6.8f1\Editor\Unity.exe
+-batchmode
+-nographics
+-quit
+-projectPath
+C:\Users\Prasanna\F1 Signature
+-executeMethod
+F1Sim.EditorTools.InterlagosTrackProcessor.BuildTrackOnly
+-logFile
+C:\Users\Prasanna\F1 Signature\track_build.log
+Successfully changed project path to: C:\Users\Prasanna\F1 Signature
+C:/Users/Prasanna/F1 Signature
+[ExitDontLaunchBugReporter] Exiting without the bug reporter. Application will exit with return code 1

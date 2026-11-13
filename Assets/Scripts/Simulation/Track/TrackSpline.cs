@@ -8,6 +8,9 @@ namespace F1Sim.Simulation.Track
     public struct TrackQueryResult
     {
         public float s;
+        public float x;
+        public float y;
+        public float z;
         public float lateralOffset; // positive = left of driving direction
         public float headingRad;    // radians, clockwise from world +Z
         public float curvature;     // 1/m, positive = turning left
@@ -16,6 +19,8 @@ namespace F1Sim.Simulation.Track
         public float trackWidth;    // width in meters
         public SurfaceType surface; // surface classification
         public int nearestIndex;
+        public float barrierLeft;   // physical barrier limit to the left
+        public float barrierRight;  // physical barrier limit to the right
     }
 
     public class TrackSpline
@@ -47,6 +52,8 @@ namespace F1Sim.Simulation.Track
         readonly float[] _curvature;
         readonly float[] _heading;
         readonly float[] _slope;
+        readonly float[] _barrierLeft;
+        readonly float[] _barrierRight;
 
         public TrackSpline(TrackConfig config)
         {
@@ -62,6 +69,8 @@ namespace F1Sim.Simulation.Track
             _curvature = new float[Count];
             _heading = new float[Count];
             _slope = new float[Count];
+            _barrierLeft = new float[Count];
+            _barrierRight = new float[Count];
 
             for (int i = 0; i < Count; i++)
             {
@@ -72,6 +81,8 @@ namespace F1Sim.Simulation.Track
                 _s[i] = smp.s;
                 _width[i] = smp.width;
                 _curvature[i] = smp.curvature;
+                _barrierLeft[i] = smp.barrier_left > 0f ? smp.barrier_left : 25.0f;
+                _barrierRight[i] = smp.barrier_right > 0f ? smp.barrier_right : 25.0f;
             }
 
             // Precompute tangents, heading, and slopes
@@ -83,7 +94,7 @@ namespace F1Sim.Simulation.Track
                 float dx = _x[next] - _x[prev];
                 float dy = _y[next] - _y[prev];
                 float dz = _z[next] - _z[prev];
-                float ds = 4.0f; // 2 steps of 2m
+                float ds = 2.0f * (Config.sample_spacing_m > 0f ? Config.sample_spacing_m : TotalLength / Count);
 
                 // Heading: angle in X-Z plane clockwise from +Z: atan2(dx, dz)
                 _heading[i] = MathF.Atan2(dx, dz);
@@ -99,8 +110,8 @@ namespace F1Sim.Simulation.Track
             int bestIdx = hintIndex;
             float bestDistSq = float.MaxValue;
 
-            // Local search window around hintIndex (+- 35 samples = +- 70 m)
-            int searchRadius = 35;
+            // Local search window around hintIndex (+- 50 samples = +- 100 m)
+            int searchRadius = 50;
             for (int k = -searchRadius; k <= searchRadius; k++)
             {
                 int idx = (hintIndex + k) % Count;
@@ -116,17 +127,23 @@ namespace F1Sim.Simulation.Track
                 }
             }
 
-            // If hint was far off (> 50m distance), fallback to global scan
-            if (bestDistSq > 2500f)
+            // Only fallback to global scan if car is way off track (> 60m distance)
+            if (bestDistSq > 3600f)
             {
                 for (int i = 0; i < Count; i++)
                 {
                     float dx = px - _x[i];
                     float dz = pz - _z[i];
                     float dsq = dx * dx + dz * dz;
-                    if (dsq < bestDistSq)
+
+                    // Add index difference penalty to prevent snapping across to opposite track sections
+                    int idxDiff = Math.Abs(i - hintIndex);
+                    int loopDiff = Math.Min(idxDiff, Count - idxDiff);
+                    float score = dsq + (loopDiff > 80 ? (loopDiff - 80) * 2.0f : 0f);
+
+                    if (score < bestDistSq)
                     {
-                        bestDistSq = dsq;
+                        bestDistSq = score;
                         bestIdx = i;
                     }
                 }
@@ -149,7 +166,7 @@ namespace F1Sim.Simulation.Track
 
             int segStart, segEnd;
             float tParam;
-            if (t1 >= 0f)
+            if (t1 >= -1e-4f)
             {
                 segStart = i1;
                 segEnd = i2;
@@ -196,6 +213,9 @@ namespace F1Sim.Simulation.Track
             return new TrackQueryResult
             {
                 s = s,
+                x = cx,
+                y = cy,
+                z = cz,
                 lateralOffset = lateralOffset,
                 headingRad = heading,
                 curvature = curvature,
@@ -203,7 +223,51 @@ namespace F1Sim.Simulation.Track
                 slope = slope,
                 trackWidth = w,
                 surface = surface,
-                nearestIndex = bestIdx
+                nearestIndex = bestIdx,
+                barrierLeft = _barrierLeft[bestIdx],
+                barrierRight = _barrierRight[bestIdx]
+            };
+        }
+
+        /// Fast point evaluation on the centreline at arc-length s.
+        public TrackQueryResult QueryAtS(float targetS)
+        {
+            if (Count == 0) return default;
+            while (targetS < 0f) targetS += TotalLength;
+            while (targetS >= TotalLength) targetS -= TotalLength;
+
+            float spacing = TotalLength / Count;
+            int idx0 = (int)(targetS / spacing);
+            if (idx0 < 0) idx0 = 0;
+            if (idx0 >= Count) idx0 = Count - 1;
+            int idx1 = (idx0 + 1) % Count;
+
+            float s0 = _s[idx0];
+            float s1 = _s[idx1];
+            if (s1 < s0) s1 += TotalLength;
+
+            float t = (s1 > s0) ? Math.Clamp((targetS - s0) / (s1 - s0), 0f, 1f) : 0f;
+
+            float px = _x[idx0] + t * (_x[idx1] - _x[idx0]);
+            float py = _y[idx0] + t * (_y[idx1] - _y[idx0]);
+            float pz = _z[idx0] + t * (_z[idx1] - _z[idx0]);
+
+            return new TrackQueryResult
+            {
+                s = targetS,
+                x = px,
+                y = py,
+                z = pz,
+                lateralOffset = 0f,
+                headingRad = _heading[idx0],
+                curvature = _curvature[idx0],
+                heightY = py,
+                slope = _slope[idx0],
+                trackWidth = _width[idx0],
+                surface = SurfaceType.Asphalt,
+                nearestIndex = idx0,
+                barrierLeft = _barrierLeft[idx0],
+                barrierRight = _barrierRight[idx0]
             };
         }
 

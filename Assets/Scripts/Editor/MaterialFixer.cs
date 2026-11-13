@@ -80,7 +80,7 @@ namespace F1Sim.Editor
             AssetDatabase.SaveAssets();
 
             // Find all Car objects in the open scene
-            var carControllers = Object.FindObjectsByType<CarController>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var carControllers = Object.FindObjectsByType<CarController>(FindObjectsInactive.Include);
             foreach (var cc in carControllers)
             {
                 var renderers = cc.GetComponentsInChildren<Renderer>(true);
@@ -99,7 +99,7 @@ namespace F1Sim.Editor
             }
 
             // Also replace any material in the open scene whose shader is missing or error-pink (Hidden/InternalErrorShader)
-            var allRenderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var allRenderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include);
             foreach (var r in allRenderers)
             {
                 var mats = r.sharedMaterials;

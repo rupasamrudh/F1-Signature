@@ -54,12 +54,44 @@ namespace F1Sim.Simulation
         public float EngineRpm          => PT.EngineRpm;
         public bool  IsShifting         => PT.IsShifting;
 
+        public float MaxTireSlip
+        {
+            get
+            {
+                float maxA = 0f;
+                float maxK = 0f;
+                if (Wheels != null)
+                {
+                    for (int i = 0; i < Wheels.Length; i++)
+                    {
+                        if (Wheels[i] == null) continue;
+                        float a = MathF.Abs(Wheels[i].alphaLag);
+                        if (a > maxA) maxA = a;
+                        float k = MathF.Abs(Wheels[i].kappaLag);
+                        if (k > maxK) maxK = k;
+                    }
+                }
+                return MathF.Max(maxA, maxK);
+            }
+        }
+
         // Per-wheel vertical loads (for telemetry)
         public float FzFL, FzFR, FzRL, FzRR;
 
         // Split-mu scaling factors (1.0 default)
         public float muScaleRL = 1.0f;
         public float muScaleRR = 1.0f;
+
+        // Track 3D physics inputs (gravity pitch component, wheel surface properties)
+        public float trackPitchRad = 0f;
+        public float surfaceGripFL = 1.0f;
+        public float surfaceGripFR = 1.0f;
+        public float surfaceGripRL = 1.0f;
+        public float surfaceGripRR = 1.0f;
+        public float surfaceDragFL = 1.0f;
+        public float surfaceDragFR = 1.0f;
+        public float surfaceDragRL = 1.0f;
+        public float surfaceDragRR = 1.0f;
 
         // Braking performance metrics
         public float currentBrakingDecelG;
@@ -103,9 +135,11 @@ namespace F1Sim.Simulation
             var (down, drag) = AeroModel.Step(P, Aero, Vx, dt);
 
             // ── Per-wheel vertical loads ───────────────────────────────────────
-            // Static weight per axle
-            float fzFStatic = P.mass * g * b / L;
-            float fzRStatic = P.mass * g * a / L;
+            // Scale normal static load by cos(pitch)
+            // TODO: crest/dip load changes (d^2z/ds^2 * Vx^2) placeholder
+            float cosPitch = MathF.Cos(trackPitchRad);
+            float fzFStatic = P.mass * g * b / L * cosPitch;
+            float fzRStatic = P.mass * g * a / L * cosPitch;
 
             // Aero downforce per axle
             float fzFAero = down * P.aeroFrontFrac;
@@ -129,11 +163,13 @@ namespace F1Sim.Simulation
             FzRL = MathF.Max(fzRAxle * 0.5f - fzLatRear,  P.minWheelLoad);
             FzRR = MathF.Max(fzRAxle * 0.5f + fzLatRear,  P.minWheelLoad);
 
-            // ── Friction coefficients per wheel ───────────────────────────────
-            float muFL = TireModel.Mu(P, FzFL);
-            float muFR = TireModel.Mu(P, FzFR);
-            float muRL = TireModel.Mu(P, FzRL) * muScaleRL;
-            float muRR = TireModel.Mu(P, FzRR) * muScaleRR;
+            // ── Friction coefficients per wheel (405mm wide rear tires receive mechanical grip advantage) ───
+            float muFL = TireModel.Mu(P, FzFL) * surfaceGripFL;
+            float muFR = TireModel.Mu(P, FzFR) * surfaceGripFR;
+            float muRLBase = TireModel.Mu(P, FzRL) * muScaleRL * surfaceGripRL;
+            float muRRBase = TireModel.Mu(P, FzRR) * muScaleRR * surfaceGripRR;
+            float muRL = muRLBase * P.rearTireGripMult;
+            float muRR = muRRBase * P.rearTireGripMult;
 
             // ── Grip-limited steering lock ─────────────────────────────────────
             float fzFAxleC = FzFL + FzFR;
@@ -141,9 +177,42 @@ namespace F1Sim.Simulation
             float muFavg   = TireModel.Mu(P, fzFAxleC * 0.5f);
             float muRavg   = TireModel.Mu(P, fzRAxleC * 0.5f);
             float ayMax    = 0.85f * (muFavg * fzFAxleC + muRavg * fzRAxleC) / P.mass;
-            float deltaLimit = MathF.Min(P.maxSteerAngle,
-                (L * ayMax / MathF.Max(Vx * Vx, 25f)) * P.steerLimitScale);
-            float deltaCmd = -steer * deltaLimit; // +1 steer = right → negative left-positive delta
+
+            // ── Dynamic Cornering Steering Modulation (Decel vs Accel) ────────
+            // In order to carry speed in corners:
+            // 1. Deceleration (braking / trail-braking entry): weight shifts forward to the front axle;
+            //    the car gradually turns more and more to tuck into the apex and rotate smoothly.
+            // 2. Acceleration (throttle exit): weight shifts rearward to the driven axle;
+            //    the car gradually turns less and less to eliminate front scrub drag and carry exit speed.
+            float longG = Ax / 9.81f;
+            float turnMod = 1.0f;
+
+            if (brake > 0.01f)
+            {
+                // Deceleration under braking / trail-braking:
+                // Weight transfers to front axle; car gradually turns more and more into apex
+                float decelIntensity = Math.Clamp(-longG / 2.5f, 0f, 1f);
+                float decelAmount = MathF.Max(decelIntensity, Math.Clamp(brake, 0f, 1f));
+                turnMod = 1.0f + P.decelTurnGain * decelAmount;
+            }
+            else if (throttle > 0.01f && longG > 0f)
+            {
+                // Acceleration on corner exit:
+                // Weight transfers to rear axle; car gradually turns less and less to carry exit speed
+                float accelIntensity = Math.Clamp(longG / 1.2f, 0f, 1f) * Math.Clamp(throttle, 0f, 1f);
+                turnMod = 1.0f - P.accelTurnReduction * accelIntensity;
+            }
+
+            // Real physical steering angle limit based on lateral grip:
+            // At high speeds, aerodynamic downforce expands ayMax, maintaining high-speed steering authority.
+            // Minimum lock floor ensures the car can always turn into corners without feeling dead or locked straight.
+            float minLockFloor = 0.10f; // ~5.7 deg minimum steering lock at high speed
+            float deltaLimit = Math.Clamp(
+                (L * ayMax / MathF.Max(Vx * Vx, 25f)) * P.steerLimitScale,
+                minLockFloor,
+                P.maxSteerAngle);
+
+            float deltaCmd = -steer * deltaLimit * turnMod; // +1 steer = right → negative left-positive delta
 
             // ── Steering rate limit ───────────────────────────────────────────
             float u         = Math.Clamp(speed / P.steerRateSpeed, 0f, 1f);
@@ -179,17 +248,25 @@ namespace F1Sim.Simulation
                 }
             }
 
-            // ── Stability assist ──────────────────────────────────────────────
-            float beta    = MathF.Atan2(Vy, MathF.Max(Vx, 5f));
-            float rRef    = Vx * MathF.Tan(steerAngle) / L;
-            float assistFade = Math.Clamp(speed / 2f, 0f, 1f);
-            float da = P.stabilityAssist * (P.kBeta * beta - P.kYaw * (R - rRef)) * assistFade;
-            da = Math.Clamp(da, -0.08f, 0.08f);
-            DeltaAssist = da;
+            // ── Stability assist (Smooth Counter-Steer) ────────────────────────
+            float beta = MathF.Atan2(Vy, MathF.Max(Vx, 5f));
+            float rRef = Vx * MathF.Tan(steerAngle) / L;
+            float assistFade = Math.Clamp(speed / 3f, 0f, 1f);
+
+            // Subtle deadband prevents counter-steer from fighting normal turn-in
+            float betaEff = MathF.Abs(beta) > 0.02f ? beta : 0f;
+            float yawErr  = (R - rRef);
+            float yawEff  = MathF.Abs(yawErr) > 0.03f ? yawErr : 0f;
+
+            float daTarget = P.stabilityAssist * (P.kBeta * betaEff - P.kYaw * yawEff) * assistFade;
+            daTarget = Math.Clamp(daTarget, -P.maxAssistAngle, P.maxAssistAngle);
+
+            // Smooth exponential filter eliminates sharp snaps and tank-slapper oscillations
+            DeltaAssist += (daTarget - DeltaAssist) * (1f - MathF.Exp(-P.assistFilterRate * dt));
 
             // Apply assist to both front wheels equally
-            deltaFL += da;
-            deltaFR += da;
+            deltaFL += DeltaAssist;
+            deltaFR += DeltaAssist;
             finalSteerAngle = (deltaFL + deltaFR) * 0.5f;
 
             // ── Brake-while-cornering coupling ────────────────────────────────
@@ -204,7 +281,7 @@ namespace F1Sim.Simulation
             var (bFL, bFR, bRL, bRR) = BrakeModel.Compute(
                 P, brake, cornerFactor,
                 FzFL, FzFR, FzRL, FzRR,
-                muFL, muFR, muRL, muRR);
+                muFL, muFR, muRLBase, muRRBase);
 
             if (brake > 0.1f)
             {
@@ -225,8 +302,33 @@ namespace F1Sim.Simulation
                 }
             }
 
-            // ── Powertrain ────────────────────────────────────────────────────
-            var (rawWheelTorque, _, _) = Powertrain.Step(P, PT, throttle, Vx, dt, FzRL, FzRR);
+            // ── Powertrain & Reverse Gear Engagement ────────────────────────
+            // When stopped or near stopped (Vx < 1.0 m/s) and brake is held without throttle, engage reverse
+            float forwardThrottle = throttle;
+            float reverseDemand = 0f;
+            if (brake > 0.1f && throttle < 0.05f)
+            {
+                if (Vx < 0.8f && PT.Gear <= 1)
+                {
+                    PT.Gear = -1; // Engage Reverse
+                    reverseDemand = brake;
+                }
+            }
+            else if (throttle > 0.05f)
+            {
+                if (PT.Gear == -1)
+                {
+                    PT.Gear = 1; // Shift back to 1st gear on forward throttle
+                }
+            }
+
+            var (rawWheelTorque, _, _) = Powertrain.Step(P, PT, forwardThrottle, Vx, dt, FzRL, FzRR);
+            if (PT.Gear == -1)
+            {
+                // In reverse: deliver backwards drive torque capped to reverse top speed (~40 km/h)
+                float revCap = Vx < -11f ? 0f : 1f;
+                rawWheelTorque = -reverseDemand * 4500f * revCap;
+            }
 
             float vxFL = Vx - R * twF; float vyFL = Vy + R * a;
             float vxFR = Vx + R * twF; float vyFR = Vy + R * a;
@@ -256,11 +358,21 @@ namespace F1Sim.Simulation
                 tcFactor = 1.0f / (1.0f + excess * excess);
             }
 
+            // Sideslip & oversteer protection for Traction Control:
+            // If the rear steps out sideways (beta > 3 deg), smoothly modulate drive torque so rear tires regain lateral grip
+            float betaDegCurrent = MathF.Abs(beta * (180f / MathF.PI));
+            if (betaDegCurrent > 3.0f)
+            {
+                float betaExcess = (betaDegCurrent - 3.0f) / 4.0f; // 0 at 3 deg, 1 at 7 deg
+                float oversteerTcCut = 1.0f / (1.0f + betaExcess * betaExcess * 2.5f);
+                tcFactor *= oversteerTcCut;
+            }
+
             // Corner exit protection: scale drive torque by current rear lateral grip scale when steering or lateral G is non-zero
             float cornerExitScale = 1.0f;
             if (MathF.Abs(steer) > 0.01f || MathF.Abs(ayBody) > 0.5f)
             {
-                cornerExitScale = Math.Clamp(RearLateralGripScale, 0.20f, 1.0f);
+                cornerExitScale = Math.Clamp(RearLateralGripScale, 0.75f, 1.0f);
             }
 
             float effectiveTorque = rawWheelTorque * tcFactor * cornerExitScale;
@@ -402,9 +514,15 @@ namespace F1Sim.Simulation
             float fxBodyFR = fxFR * cdFR - fyFR * sdFR;
             float fyBodyFR = fxFR * sdFR + fyFR * cdFR;
 
-            float rolling = Vx > 0.1f ? P.rollingRes * P.mass * 9.81f : 0f;
+            // Rolling drag per wheel scaled by surfaceDrag
+            float avgSurfaceDrag = (surfaceDragFL + surfaceDragFR + surfaceDragRL + surfaceDragRR) * 0.25f;
+            float rolling = Vx > 0.1f ? P.rollingRes * P.mass * 9.81f * avgSurfaceDrag : 0f;
 
-            float fxBody = fxBodyFL + fxBodyFR + fxRL + fxRR - drag - rolling;
+            // Longitudinal gravity component: mass * g * sin(pitch)
+            // positive pitch (uphill) opposes forward motion (-); downhill assists (+)
+            float fGravLong = -P.mass * g * MathF.Sin(trackPitchRad);
+
+            float fxBody = fxBodyFL + fxBodyFR + fxRL + fxRR - drag - rolling + fGravLong;
             float fyBody = fyBodyFL + fyBodyFR + fyRL + fyRR;
 
             // Yaw moment: front axle force × a, rear axle force × (-b)
@@ -419,7 +537,7 @@ namespace F1Sim.Simulation
             fyBodyReal = fyBody;
             ayBody     = fyBody / P.mass;
 
-            // Spin recovery yaw damping
+            // Spin recovery yaw damping (stabilizes oversteer and keeps tail planted)
             if (MathF.Abs(beta) > P.spinBetaThreshold)
                 mz -= P.spinYawDamping * R;
 
@@ -429,7 +547,14 @@ namespace F1Sim.Simulation
             R  += (mz / P.yawInertia) * dt;
             Ax += (fxBody / P.mass - Ax) * MathF.Min(1f, dt * 20f);
 
-            if (Vx < 0f) Vx = 0f;
+            if (PT.Gear == -1)
+            {
+                if (Vx < -11f) Vx = -11f; // ~40 km/h reverse limit
+            }
+            else
+            {
+                if (Vx < 0f) Vx = 0f;
+            }
 
             if (isBrakingActive)
             {

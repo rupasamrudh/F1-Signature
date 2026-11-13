@@ -1,6 +1,5 @@
-// TrackDataLoader.cs — Loads track and elevation JSON into TrackConfig and builds TrackSpline.
+// TrackDataLoader.cs — Loads track and elevation JSON via Resources.Load<TextAsset> for editor and device.
 using System;
-using System.IO;
 using UnityEngine;
 using F1Sim.Simulation.Track;
 
@@ -8,33 +7,37 @@ namespace F1Sim.Track
 {
     public static class TrackDataLoader
     {
-        public static TrackConfig LoadTrack(string trackPath = "Assets/Data/Tracks/f1sig_track.json")
+        public const string DefaultTrackResource = "Tracks/f1sig_track";
+        public const string DefaultElevationResource = "Tracks/f1sig_elevation";
+        public const string DefaultPropsResource = "Tracks/f1sig_props";
+
+        public static TrackConfig LoadTrack(string resourcePath = DefaultTrackResource)
         {
-            if (!File.Exists(trackPath))
+            var textAsset = Resources.Load<TextAsset>(resourcePath);
+            if (textAsset == null)
             {
-                Debug.LogError($"[TrackDataLoader] File not found: {trackPath}");
+                Debug.LogError($"[TrackDataLoader] Track TextAsset not found at Resources/{resourcePath}");
                 return null;
             }
 
-            string json = File.ReadAllText(trackPath);
-            return JsonUtility.FromJson<TrackConfig>(json);
+            return JsonUtility.FromJson<TrackConfig>(textAsset.text);
         }
 
-        public static ElevationConfig LoadElevation(string elevPath = "Assets/Data/Tracks/f1sig_elevation.json")
+        public static ElevationConfig LoadElevation(string resourcePath = DefaultElevationResource)
         {
-            if (!File.Exists(elevPath))
+            var textAsset = Resources.Load<TextAsset>(resourcePath);
+            if (textAsset == null)
             {
-                Debug.LogError($"[TrackDataLoader] File not found: {elevPath}");
+                Debug.LogError($"[TrackDataLoader] Elevation TextAsset not found at Resources/{resourcePath}");
                 return null;
             }
 
-            string json = File.ReadAllText(elevPath);
-            return JsonUtility.FromJson<ElevationConfig>(json);
+            return JsonUtility.FromJson<ElevationConfig>(textAsset.text);
         }
 
-        public static TrackSpline CreateSpline(string trackPath = "Assets/Data/Tracks/f1sig_track.json")
+        public static TrackSpline CreateSpline(string resourcePath = DefaultTrackResource)
         {
-            var config = LoadTrack(trackPath);
+            var config = LoadTrack(resourcePath);
             return config != null ? new TrackSpline(config) : null;
         }
     }

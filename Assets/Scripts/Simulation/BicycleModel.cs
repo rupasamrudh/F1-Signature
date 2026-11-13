@@ -6,7 +6,7 @@ namespace F1Sim.Simulation
     public class CarParams
     {
         // ── Parameter versioning ───────────────────────────────────────────
-        public const int CURRENT_VERSION = 3;
+        public const int CURRENT_VERSION = 12;
         public int paramsVersion;
 
         // ── Chassis (2026-style: 768 kg, 3.4 m wheelbase) ─────────────────
@@ -15,7 +15,7 @@ namespace F1Sim.Simulation
         public float frontWeightFrac = 0.455f;
         public float cgHeight        = 0.28f;
         public float yawInertia      = 2800f;   // tuned M2 stabilisation: 0.10-0.25s yaw rise time, overshoot < 25%
-        public float maxSteerAngle   = 0.35f;   // rad at low speed
+        public float maxSteerAngle   = 0.15f;   // rad (~8.59 deg) 90-degree corner race lock (steer is at most 90 deg at wheel)
         public float steerFalloffSpeed = 30f;   // m/s, legacy speed falloff
 
         // ── 4-Wheel geometry (M2) ──────────────────────────────────────────
@@ -26,32 +26,38 @@ namespace F1Sim.Simulation
         public float minWheelLoad       = 150f;   // N minimum per-wheel load
 
         // ── Grip-limited steering lock ─────────────────────────────────────
-        public float steerLimitScale = 1.25f;
+        public float steerLimitScale = 1.65f; // Enhanced cornering authority to carry speed through medium & high-speed corners
+
+        // ── Dynamic Cornering Steering (Decel/Accel modulation) ─────────
+        public float decelTurnGain      = 0.35f; // Extra turn authority while decelerating (turns more and more to tuck into apex)
+        public float accelTurnReduction = 0.38f; // Steering unwinding while accelerating (turns less and less to carry exit speed)
 
         // ── Steering rate limit ────────────────────────────────────────────
-        public float steerRateMax   = 1.5f;   // rad/s at 0 m/s
-        public float steerRateMin   = 0.4f;   // rad/s at 80 m/s
+        public float steerRateMax   = 2.8f;   // rad/s at 0 m/s (~160 deg/s smooth progressive turn-in)
+        public float steerRateMin   = 1.4f;   // rad/s at 80 m/s (~80 deg/s high-speed cornering stability)
         public float steerRateSpeed = 80f;    // m/s
 
         // ── Stability assist ───────────────────────────────────────────────
-        public float stabilityAssist = 0.6f;  // 0..1
-        public float kBeta           = 0.5f;
-        public float kYaw            = 0.05f;
+        public float stabilityAssist = 0.65f;  // Smooth, refined counter-steer assist (eliminates sharp snaps)
+        public float kBeta           = 0.55f;  // Sideslip angle damping
+        public float kYaw            = 0.035f; // Yaw rate error damping
+        public float maxAssistAngle  = 0.055f; // rad (~3.15 deg max counter-steer angle)
+        public float assistFilterRate = 12.0f; // s^-1: smooth exponential damping for buttery counter-steer
 
         // ── Traction and braking limits ────────────────────────────────────
-        public float tractionFrac        = 0.60f;  // rear drive force cap fallback
-        public bool  tcForceLimitFallback = false;  // fallback behind bool (Prompt: slip-ratio TC active by default)
+        public float tractionFrac        = 0.68f;  // rear drive force cap (tuned M3: 0-100 in 2.78s, 0-200 in 5.04s)
+        public bool  tcForceLimitFallback = true;   // force limit active by default
         public float tcSlipTarget        = 0.12f;  // target rear slip ratio before TC cut
         public float tcSlipRange         = 0.08f;  // smoothing range above target
-        public float rearLateralReserve  = 0.60f;  // cap rear combined usage so lateral grip scale never drops below this
+        public float rearLateralReserve  = 0.80f;  // cap rear combined usage so lateral grip scale never drops below 80% (prevents snap oversteer)
         public float diffLockFrac        = 0.40f;  // LSD extra torque transfer to slower wheel
         public float wheelInertia        = 1.2f;   // kg*m^2 per wheel
 
         public float absFrac          = 0.90f;  // front axle brake force cap (tuned M2)
         public float rearAbsFrac      = 0.565f; // rear axle brake force cap (tuned M2)
         public float brakeBiasFront   = 0.68f;  // front brake bias fraction
-        public float brakeCornerCut   = 0.35f;  // brake reduction during cornering (target <= 0.40)
-        public float lateralGripFloor = 0.30f;  // friction-ellipse lateral grip floor
+        public float brakeCornerCut   = 0.40f;  // brake reduction during cornering
+        public float lateralGripFloor = 0.55f;  // friction-ellipse lateral grip floor (allows strong steering authority while trail-braking)
 
         // ── Tire slip relaxation ───────────────────────────────────────────
         public float relaxLength = 0.4f;  // m
@@ -60,8 +66,8 @@ namespace F1Sim.Simulation
         public float vBlend = 8.0f;  // m/s
 
         // ── Spin recovery damping ──────────────────────────────────────────
-        public float spinBetaThreshold = 0.5f;    // rad
-        public float spinYawDamping    = 2500f;   // N*m*s/rad
+        public float spinBetaThreshold = 0.10f;   // rad (~5.7 deg, catches oversteer early to prevent spin-outs)
+        public float spinYawDamping    = 4500f;   // N*m*s/rad (firm anti-spin damping to keep rear planted)
 
         // ── Powertrain M1 legacy (kept for BicycleModel compatibility) ─────
         public float powerW       = 650000f;
@@ -103,8 +109,9 @@ namespace F1Sim.Simulation
         public float aeroBlendTime   = 0.15f;   // s to fully switch modes
 
         // ── Tire (Pacejka lateral, per wheel) ─────────────────────────────
-        public float mu0      = 2.30f;   // tuned M2 stabilisation: 2.5-3.5 g skidpad with yawInertia=2800
-        public float fz0      = 4000f;
+        public float mu0              = 2.30f;   // tuned M2 stabilisation: 2.5-3.5 g skidpad with yawInertia=2800
+        public float rearTireGripMult = 1.10f;   // 405mm wide rear tire contact patch grip advantage (+10% rear traction)
+        public float fz0              = 4000f;
         public float loadSens = 0.05f;
         public float pacB     = 9.0f;    // tuned M2 stabilisation: lateral stiffness for 0.10-0.25s rise time (0.100s)
         public float pacC     = 1.6f;
@@ -222,16 +229,20 @@ namespace F1Sim.Simulation
             else
                 steerAngle += MathF.Sign(diff) * maxStep;
 
-            // Stability assist: counter-steer correction deltaAssist
-            // Direction: if tail slides left (beta > 0), steer toward slide (left-positive delta)
+            // Stability assist: smooth counter-steer correction DeltaAssist
             float beta = MathF.Atan2(Vy, MathF.Max(Vx, 5f));
             float rRef = Vx * MathF.Tan(steerAngle) / L;
-            float assistFade = Math.Clamp(speed / 8f, 0f, 1f);
-            float deltaAssist = P.stabilityAssist * (P.kBeta * beta - P.kYaw * (R - rRef)) * assistFade;
-            deltaAssist = Math.Clamp(deltaAssist, -0.08f, 0.08f);
-            DeltaAssist = deltaAssist;
+            float assistFade = Math.Clamp(speed / 3f, 0f, 1f);
 
-            float delta = steerAngle + deltaAssist;
+            float betaEff = MathF.Abs(beta) > 0.02f ? beta : 0f;
+            float yawErr  = (R - rRef);
+            float yawEff  = MathF.Abs(yawErr) > 0.03f ? yawErr : 0f;
+
+            float daTarget = P.stabilityAssist * (P.kBeta * betaEff - P.kYaw * yawEff) * assistFade;
+            daTarget = Math.Clamp(daTarget, -P.maxAssistAngle, P.maxAssistAngle);
+            DeltaAssist += (daTarget - DeltaAssist) * (1f - MathF.Exp(-P.assistFilterRate * dt));
+
+            float delta = steerAngle + DeltaAssist;
             finalSteerAngle = delta;
 
             // Longitudinal demand: Brake-while-cornering coupling

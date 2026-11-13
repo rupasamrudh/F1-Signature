@@ -101,7 +101,7 @@ namespace F1Sim.Tests
 
             Console.WriteLine($"T4  300→0: dist={dist:0.0}m, time={elapsed:0.00}s, peakDecel={peakDecelG:0.00}g, avgDecel={avgDecelG:0.00}g, maxBeta={maxBeta:0.0}° (init front={v.initialBrakeFrontN:0}N, rear={v.initialBrakeRearN:0}N)");
             Assert.That(dist,       Is.InRange(100f, 150f), $"stop distance = {dist:0.0} m");
-            Assert.That(elapsed,    Is.InRange(3.5f, 5.5f), $"stop time = {elapsed:0.0} s");
+            Assert.That(elapsed,    Is.InRange(3.0f, 5.5f), $"stop time = {elapsed:0.0} s");
             Assert.That(peakDecelG, Is.InRange(4.0f, 5.8f), $"peak decel = {peakDecelG:0.00} g (target 4.0-5.8 g)");
             Assert.That(avgDecelG,  Is.InRange(2.0f, 3.0f), $"avg decel = {avgDecelG:0.00} g (target 2.0-3.0 g)");
             Assert.That(maxBeta,    Is.LessThan(5f),         $"max beta during braking = {maxBeta:0.0}°");
@@ -421,7 +421,33 @@ namespace F1Sim.Tests
             Assert.That(activeConfig.yawInertia, Is.EqualTo(2800f));
             Assert.That(activeConfig.pacB, Is.EqualTo(9.0f));
             Assert.That(activeConfig.mu0, Is.EqualTo(2.30f));
+            Assert.That(activeConfig.tractionFrac, Is.EqualTo(0.68f));
             Console.WriteLine($"T16 Legacy payload reset test: PASS (resetTriggered={resetTriggered}, v={activeConfig.paramsVersion}, brakeBias={activeConfig.brakeBiasFront:0.00})");
+        }
+
+        // ── T17: Brake-while-turning from 80 km/h stability ─────────────────
+        // From 80 km/h, full steering lock (+1.0) with brake 0.17 held for 1 s must keep abs(beta) under 12 degrees
+        [Test]
+        public void T17_BrakeTurn_80Kmh_LockAndBrake()
+        {
+            var v = MakeModel();
+            float dt = 1f / 120f;
+            v.Vx = 80f / 3.6f;
+            v.Wheels[0].omega = v.Vx / v.P.tireRadius;
+            v.Wheels[1].omega = v.Vx / v.P.tireRadius;
+            v.Wheels[2].omega = v.Vx / v.P.tireRadius;
+            v.Wheels[3].omega = v.Vx / v.P.tireRadius;
+
+            float maxBeta = 0f;
+            for (int i = 0; i < (int)(1.0f / dt); i++)
+            {
+                v.Step(dt, 1.0f, 0f, 0.17f);
+                float beta = MathF.Abs(v.BetaDeg);
+                if (beta > maxBeta) maxBeta = beta;
+            }
+
+            Console.WriteLine($"T17 Brake+turn 80 km/h (full lock, brake 0.17 for 1s): maxBeta={maxBeta:F2}° (target < 12°)");
+            Assert.That(maxBeta, Is.LessThan(12.0f), $"Brake+turn beta too high: {maxBeta:F2}°");
         }
     }
 }

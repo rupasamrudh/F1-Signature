@@ -39,6 +39,7 @@ namespace F1Sim.Tests
             Run("T15a Flick test 100 km/h",                 () => suite.T15_FlickTest_NoSpin(100f));
             Run("T15b Flick test 220 km/h",                 () => suite.T15_FlickTest_NoSpin(220f));
             Run("T16 Legacy payload reset test",            suite.T16_LegacyPayload_ResetsDefaults_WhenParamsVersionZero);
+            Run("T17 Brake+turn 80 km/h stability",         suite.T17_BrakeTurn_80Kmh_LockAndBrake);
 
             Console.WriteLine("==================================================");
             Console.WriteLine($"Results: {passed} passed, {failed} failed.");

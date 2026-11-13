@@ -7,7 +7,7 @@ namespace F1Sim.Track
     [ExecuteInEditMode]
     public class TrackGizmoVisualizer : MonoBehaviour
     {
-        public string trackJsonPath = "Assets/Data/Tracks/f1sig_track.json";
+        public string trackResourcePath = TrackDataLoader.DefaultTrackResource;
         public bool showCenterline = true;
         public bool showTrackWidth = true;
         public bool showCorners = true;
@@ -20,7 +20,7 @@ namespace F1Sim.Track
 
         public void Reload()
         {
-            trackConfig = TrackDataLoader.LoadTrack(trackJsonPath);
+            trackConfig = TrackDataLoader.LoadTrack(trackResourcePath);
         }
 
         void OnDrawGizmos()
@@ -97,9 +97,10 @@ namespace F1Sim.Track
             if (showCorners && trackConfig.corners != null)
             {
                 Gizmos.color = new Color(1f, 0.5f, 0f); // Orange
+                float spacing = trackConfig.sample_spacing_m > 0f ? trackConfig.sample_spacing_m : 2.0f;
                 foreach (var c in trackConfig.corners)
                 {
-                    int idx = Mathf.Clamp(Mathf.RoundToInt(c.apex_s / 2f), 0, count - 1);
+                    int idx = Mathf.Clamp(Mathf.RoundToInt(c.apex_s / spacing), 0, count - 1);
                     Vector3 pos = new Vector3(samples[idx].x, samples[idx].y + 0.5f, samples[idx].z);
                     Gizmos.DrawSphere(pos, 2.5f);
                 }

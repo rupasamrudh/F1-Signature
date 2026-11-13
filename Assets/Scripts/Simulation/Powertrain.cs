@@ -5,7 +5,7 @@ namespace F1Sim.Simulation
 {
     public class PowertrainState
     {
-        public int   Gear      = 1;        // 1..8
+        public int   Gear      = 1;        // -1 (Reverse), 1..8 (Forward)
         public float EngineRpm = 1000f;
         public float WheelOmegaRL;         // rear-left wheel angular velocity (rad/s)
         public float WheelOmegaRR;         // rear-right wheel angular velocity (rad/s)
@@ -43,6 +43,7 @@ namespace F1Sim.Simulation
         // finalDrive=8.5, tireRadius=0.330m → top speed in 8th at 15000 RPM ≈ 338 km/h.
         public static float GearRatio(CarParams p, int gear)
         {
+            if (gear == -1) return 2.80f; // Reverse gear ratio
             int g = Math.Clamp(gear, 1, 8) - 1;
             return p.gearRatios[g];
         }
@@ -88,8 +89,12 @@ namespace F1Sim.Simulation
             float wheelOmegaAvg = MathF.Max(vx / tireRadius, 0f);
             float engineOmegaEst = wheelOmegaAvg * gr;
             float rpmEst = engineOmegaEst * 60f / (2f * MathF.PI);
-            rpmEst = Math.Clamp(rpmEst, p.idleRpm, p.redlineRpm);
-            s.EngineRpm = rpmEst;
+
+            // Standing / Launch clutch slip: when stationary or rolling at low speed, engine revs dynamically with throttle
+            float standingRevTarget = Math.Clamp(p.idleRpm + throttle * 9800f, p.idleRpm, p.redlineRpm * 0.90f);
+            float clutchLock = Math.Clamp(vx / 5.0f, 0f, 1f); // 0 at standstill, fully locked above ~18 km/h
+            float effectiveRpm = (1f - clutchLock) * standingRevTarget + clutchLock * rpmEst;
+            s.EngineRpm = Math.Clamp(effectiveRpm, p.idleRpm, p.redlineRpm);
 
             // Upshift: near 95% redline
             float upshiftRpm = p.redlineRpm * 0.95f;

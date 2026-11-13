@@ -1,0 +1,28 @@
+VBCSCompilerPreWarmer: watching VBCSCompiler (PID 11284)
+VBCSCompilerPreWarmer: pre-warm launched (dotnet PID 14568)
+VBCSCompiler prewarm took 41.64 ms
+[Licensing::Module] Trying to connect to existing licensing client channel...
+[Licensing::IpcConnector] Connection to channel LicenseClient-Prasanna refused
+Built from '6000.6/respin/6000.6.8f1-b6138bef9630' branch; Version is '6000.6.8f1 (237b6593792b) revision 2325349'; Using compiler version '194234433'; Build Type 'Release'
+OS: 'Windows 11  (10.0.26300) CoreSingleLanguage' Language: 'en' Physical Memory: 16052 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+System  architecture: x64
+Process architecture: x64
+Date: 2026-11-12T06:27:18Z
+Assertion failed on expression: 'SUCCEEDED(hr)'
+Assertion failed on expression: 'wmiOpened'
+Assertion failed on expression: 'ERROR_SUCCESS == status'
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.6.8f1\Editor\Unity.exe
+-quit
+-batchmode
+-projectPath
+C:\Users\Prasanna\F1 Signature
+-executeMethod
+F1Sim.EditorTools.AudioSetupEditor.SetupAudioSystemMenu
+-logFile
+C:\Users\Prasanna\F1 Signature\setup_audio.log
+Successfully changed project path to: C:\Users\Prasanna\F1 Signature
+C:/Users/Prasanna/F1 Signature
+[ExitDontLaunchBugReporter] Exiting without the bug reporter. Application will exit with return code 1

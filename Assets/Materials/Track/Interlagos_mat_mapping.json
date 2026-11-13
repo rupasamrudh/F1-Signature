@@ -1,0 +1,2126 @@
+{
+  "redbuild_windows.004": {
+    "index": 0,
+    "texture": "000_redbuild_windows.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.3366750478744507
+  },
+  "portaopreto.004": {
+    "index": 1,
+    "texture": "001_GARAGE_DOOR_brilho.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "Material_#5166.004": {
+    "index": 2,
+    "texture": "002_windows_1.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.5309584140777588
+  },
+  "racecontrol_white.004": {
+    "index": 3,
+    "texture": "003_gstands_supports.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.6127016544342041
+  },
+  "box_vidro.004": {
+    "index": 4,
+    "texture": "004_brz_pit_controltower_a_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.3366750478744507
+  },
+  "vidro_predio.004": {
+    "index": 5,
+    "texture": "005_brz_pit_garages_b_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.3366750478744507
+  },
+  "lakes.004": {
+    "index": 6,
+    "texture": "007_ocean.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.639444887638092
+  },
+  "Material_#5384.004": {
+    "index": 7,
+    "texture": "009_suport_df.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.7763931751251221
+  },
+  "portaobrilho.004": {
+    "index": 8,
+    "texture": "001_GARAGE_DOOR_brilho.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.800000011920929
+  },
+  "TAPETE.004": {
+    "index": 9,
+    "texture": "013_carpet-detail.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "roadpits.004": {
+    "index": 10,
+    "texture": "016_concrete_detail4.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.7763931751251221
+  },
+  "structures.004": {
+    "index": 11,
+    "texture": "017_structures.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "gstands_3_fence_chroma.004": {
+    "index": 12,
+    "texture": "018_gstands_3_fence.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "gstands_3_fence_1.004": {
+    "index": 13,
+    "texture": "018_gstands_3_fence.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "box_alpha.004": {
+    "index": 14,
+    "texture": "004_brz_pit_controltower_a_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "pit_garage_alpha.004": {
+    "index": 15,
+    "texture": "019_brz_pit_garages_alphaaa.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8418861031532288
+  },
+  "brz_pit_garages_b.004": {
+    "index": 16,
+    "texture": "005_brz_pit_garages_b_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "material_#14.004": {
+    "index": 17,
+    "texture": "020_brz_grandstand_bracket_01_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "groove.002": {
+    "index": 18,
+    "texture": "021_testgroove2.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.7763931751251221
+  },
+  "roadseam.004": {
+    "index": 19,
+    "texture": "022_roadseam.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "fencea.004": {
+    "index": 20,
+    "texture": "023_fencea.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "cmwallc.004": {
+    "index": 21,
+    "texture": "024_cmwalla_rust.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "startlight_gantry_wires.004": {
+    "index": 22,
+    "texture": "025_startlight_gantry_wires.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "fenceb.004": {
+    "index": 23,
+    "texture": "026_fenceb.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_supports_chroma.004": {
+    "index": 24,
+    "texture": "003_gstands_supports.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.7763931751251221
+  },
+  "gstands_supports.004": {
+    "index": 25,
+    "texture": "003_gstands_supports.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "gstands_fence.004": {
+    "index": 26,
+    "texture": "027_gstands_fence.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_fence_chroma.004": {
+    "index": 27,
+    "texture": "027_gstands_fence.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_seats.004": {
+    "index": 28,
+    "texture": "028_gstands_seats.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "fencec.004": {
+    "index": 29,
+    "texture": "029_fencec.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "TyreRed.011": {
+    "index": 30,
+    "texture": "030_Tyre.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "t56_build_white_cememt.004": {
+    "index": 31,
+    "texture": "031_tower_base.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "t56_build_roof.004": {
+    "index": 32,
+    "texture": "032_footbridge_cement_panels.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "t56_build_walls.004": {
+    "index": 33,
+    "texture": "033_gstands_boxes.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "radiotowerfence2.004": {
+    "index": 34,
+    "texture": "034_bigradio.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "radiotower_fence.004": {
+    "index": 35,
+    "texture": "029_fencec.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "radiotower_metal.004": {
+    "index": 36,
+    "texture": "035_grey_metal.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "houses.004": {
+    "index": 37,
+    "texture": "036_houses.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "flats_new_1.004": {
+    "index": 38,
+    "texture": "037_flats_4.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "flats_3.004": {
+    "index": 39,
+    "texture": "038_flats_3.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "flats_2.004": {
+    "index": 40,
+    "texture": "039_flats_2.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "floodlight_lamp.004": {
+    "index": 41,
+    "texture": "040_garage_lighting.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "paddock_light_metal.004": {
+    "index": 42,
+    "texture": "035_grey_metal.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.7763931751251221
+  },
+  "outerbuilds.004": {
+    "index": 43,
+    "texture": "041_outerbuildings.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "Material_#5258.004": {
+    "index": 44,
+    "texture": "042_riomorro.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "redbuild_supports.004": {
+    "index": 45,
+    "texture": "043_redbuild_support.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "redbuild_bricks.004": {
+    "index": 46,
+    "texture": "044_redbuild_bricks.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "bgbuildingsa.004": {
+    "index": 47,
+    "texture": "045_bgbuildingsa.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "flats_4.004": {
+    "index": 48,
+    "texture": "037_flats_4.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "flats_5.004": {
+    "index": 49,
+    "texture": "046_flats_5.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "flats_1.004": {
+    "index": 50,
+    "texture": "047_flats_1.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "gstands1.004": {
+    "index": 51,
+    "texture": "048_gstands1.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "watertower.004": {
+    "index": 52,
+    "texture": "049_watertower.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8418861031532288
+  },
+  "concrete_structures_2_building.004": {
+    "index": 53,
+    "texture": "050_garage_floor.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "concrete_stuctures_2_cement.004": {
+    "index": 54,
+    "texture": "051_gstands_cement.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "racecontrol_bars.004": {
+    "index": 55,
+    "texture": "052_white_bars.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "MultiMat_134_Slot_#1.004": {
+    "index": 56,
+    "texture": "053_SRPL_EMPTY.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "pit_roof.004": {
+    "index": 57,
+    "texture": "050_garage_floor.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "gstand_3_cement_2.004": {
+    "index": 58,
+    "texture": "054_gstands_3_cement.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "pitbuild_tower.004": {
+    "index": 59,
+    "texture": "055_pitbuild_tower.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "gseseatsa.004": {
+    "index": 60,
+    "texture": "056_grandsstandea.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "tvscreen.004": {
+    "index": 61,
+    "texture": "057_tvscreen.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "radiotower.004": {
+    "index": 62,
+    "texture": "058_startlight_gantry.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "solid.004": {
+    "index": 63,
+    "texture": "004_brz_pit_controltower_a_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.7763931751251221
+  },
+  "pit_teto.004": {
+    "index": 64,
+    "texture": "059_brz_pit_garages_c_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "predioparede.004": {
+    "index": 65,
+    "texture": "005_brz_pit_garages_b_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8418861031532288
+  },
+  "cement_no_ao.004": {
+    "index": 66,
+    "texture": "060_garage_wall_sides.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "misc_unique.004": {
+    "index": 67,
+    "texture": "061_misc_unique.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "whitepanel.004": {
+    "index": 68,
+    "texture": "062_white_trim.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "conc_gfloor.004": {
+    "index": 69,
+    "texture": "050_garage_floor.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "garage_walls_sides.004": {
+    "index": 70,
+    "texture": "060_garage_wall_sides.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "garage_interior_backwall.004": {
+    "index": 71,
+    "texture": "063_garage_backwall.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "cement_trim_horizontal.004": {
+    "index": 72,
+    "texture": "064_cement_trim_horizontal.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "cement_trim_post.004": {
+    "index": 73,
+    "texture": "065_cement_trim_post.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "material_#1!0.004": {
+    "index": 74,
+    "texture": "066_brz_pit_buildings_b_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "standard_1.004": {
+    "index": 75,
+    "texture": "067_brz_pit_gantry_a_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "advert_side_a.004": {
+    "index": 76,
+    "texture": "068_advert_side_a_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "mtr_prefab_podium_a.004": {
+    "index": 77,
+    "texture": "069_mtr_prefab_podium_a_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "brz_radio_building_a_tx.004": {
+    "index": 78,
+    "texture": "070_brz_radio_building_a_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "material_#15.004": {
+    "index": 79,
+    "texture": "071_brz_grandstand_small_h_d.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "grasscreteverge.004": {
+    "index": 80,
+    "texture": "072_roadverge_grass.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "roadverge.004": {
+    "index": 81,
+    "texture": "073_roadverge.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rmblc.004": {
+    "index": 82,
+    "texture": "074_rmblb.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rmbga.004": {
+    "index": 83,
+    "texture": "075_rmbla.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rmbla.004": {
+    "index": 84,
+    "texture": "075_rmbla.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "concdrainc.004": {
+    "index": 85,
+    "texture": "076_drainc.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "concdrain1.004": {
+    "index": 86,
+    "texture": "077_draina.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "concdrainb.004": {
+    "index": 87,
+    "texture": "078_drainb.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdilr.004": {
+    "index": 88,
+    "texture": "079_roadr.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "walla.004": {
+    "index": 89,
+    "texture": "080_walla.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "wallc.004": {
+    "index": 90,
+    "texture": "081_wallc.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "distmarker.004": {
+    "index": 91,
+    "texture": "082_DISTMARKER2.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdils.004": {
+    "index": 92,
+    "texture": "083_roads.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "material_#447.004": {
+    "index": 93,
+    "texture": "050_garage_floor.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "silverbars.004": {
+    "index": 94,
+    "texture": "084_silver_bars.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "pitwlfloor.004": {
+    "index": 95,
+    "texture": "085_pitwlfloor.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "marshut_fence.004": {
+    "index": 96,
+    "texture": "086_marshut_fence.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "marshut.004": {
+    "index": 97,
+    "texture": "087_marshut.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "pr_bluepanel.004": {
+    "index": 98,
+    "texture": "088_blue_panels.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "pr_brickwall.004": {
+    "index": 99,
+    "texture": "089_wall_bricks.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "prhousefront.004": {
+    "index": 100,
+    "texture": "090_prhousefront.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdilolda.004": {
+    "index": 101,
+    "texture": "091_roadolda.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "armcob.004": {
+    "index": 102,
+    "texture": "092_armcob.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "xsec.004": {
+    "index": 103,
+    "texture": "093_roada_spec.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "cmwalla.004": {
+    "index": 104,
+    "texture": "094_cmwalla.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "wallda.004": {
+    "index": 105,
+    "texture": "095_walld.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "pr_support.004": {
+    "index": 106,
+    "texture": "096_prsupport.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "genshadow.004": {
+    "index": 107,
+    "texture": "097_white.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_petro.004": {
+    "index": 108,
+    "texture": "098_reiza_logo.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "advertisements.004": {
+    "index": 109,
+    "texture": "099_ADVERTISEMENTS2.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "startlight_poles.004": {
+    "index": 110,
+    "texture": "100_starting_light.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "advertisements2.004": {
+    "index": 111,
+    "texture": "099_ADVERTISEMENTS2.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "twalla.004": {
+    "index": 112,
+    "texture": "101_tyrewalls.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_boxes.004": {
+    "index": 113,
+    "texture": "033_gstands_boxes.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_boxes_ao.004": {
+    "index": 114,
+    "texture": "033_gstands_boxes.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_roof.004": {
+    "index": 115,
+    "texture": "062_white_trim.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_cement.004": {
+    "index": 116,
+    "texture": "051_gstands_cement.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gsdseatsa.004": {
+    "index": 117,
+    "texture": "102_grandsstandda.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "wallb.004": {
+    "index": 118,
+    "texture": "103_wallb.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "startlight_gantry.004": {
+    "index": 119,
+    "texture": "058_startlight_gantry.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_t6_metal.004": {
+    "index": 120,
+    "texture": "062_white_trim.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_t6_steps.004": {
+    "index": 121,
+    "texture": "104_gstands_2_steps.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_t6_cement.004": {
+    "index": 122,
+    "texture": "051_gstands_cement.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "cmwallb.004": {
+    "index": 123,
+    "texture": "105_cmwallb.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "lightmats.004": {
+    "index": 124,
+    "texture": "106_lights.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "armcoa.004": {
+    "index": 125,
+    "texture": "107_armco.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "tents.004": {
+    "index": 126,
+    "texture": "108_pitbuild_tents.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_3_fence.004": {
+    "index": 127,
+    "texture": "018_gstands_3_fence.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "concrete_structures_building.004": {
+    "index": 128,
+    "texture": "050_garage_floor.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "concrete_stuctures_cement.004": {
+    "index": 129,
+    "texture": "051_gstands_cement.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "concrete_structure_building.004": {
+    "index": 130,
+    "texture": "031_tower_base.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "pwallmetal.004": {
+    "index": 131,
+    "texture": "109_pwallmetal.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "armcopost.004": {
+    "index": 132,
+    "texture": "110_armcopost.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "support_beams.004": {
+    "index": 133,
+    "texture": "111_support_beams.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "stall_numbers_1.004": {
+    "index": 134,
+    "texture": "112_stall_numbers_1.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "stall_numbers_2.004": {
+    "index": 135,
+    "texture": "113_stall_numbers_2.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "footbridge_steps_chroma.004": {
+    "index": 136,
+    "texture": "114_footbridge_steps.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "footbrige_steps.004": {
+    "index": 137,
+    "texture": "114_footbridge_steps.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "footbridge_pillars.004": {
+    "index": 138,
+    "texture": "115_footbridge_pillars.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "footbridge_cement_panels.004": {
+    "index": 139,
+    "texture": "032_footbridge_cement_panels.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "fencepole.004": {
+    "index": 140,
+    "texture": "116_fencepole.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_stairs.004": {
+    "index": 141,
+    "texture": "117_gstands_steps.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_steps_2.004": {
+    "index": 142,
+    "texture": "104_gstands_2_steps.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "material_#436.004": {
+    "index": 143,
+    "texture": "051_gstands_cement.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "material_#487.004": {
+    "index": 144,
+    "texture": "062_white_trim.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "gstands_wcement.004": {
+    "index": 145,
+    "texture": "054_gstands_3_cement.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "transparent.004": {
+    "index": 146,
+    "texture": "118_floodlights.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "illum.004": {
+    "index": 147,
+    "texture": "118_floodlights.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "main.004": {
+    "index": 148,
+    "texture": "118_floodlights.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "Material_#5387.004": {
+    "index": 149,
+    "texture": "119_external-ac.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "Material_#5386.004": {
+    "index": 150,
+    "texture": "119_external-ac.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "Material_#5165.004": {
+    "index": 151,
+    "texture": "119_external-ac.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "rdlna.004": {
+    "index": 152,
+    "texture": "120_roadln.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "concw.004": {
+    "index": 153,
+    "texture": "121_cement_white.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "creteg.004": {
+    "index": 154,
+    "texture": "011_rmblg.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "roadd.004": {
+    "index": 155,
+    "texture": "122_roadd.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdily.004": {
+    "index": 156,
+    "texture": "123_roady.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdilws.004": {
+    "index": 157,
+    "texture": "124_roadpe.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdmarblesa.004": {
+    "index": 158,
+    "texture": "125_roadanl.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdmarblessf.004": {
+    "index": 159,
+    "texture": "126_roadgrid.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "roadsf.004": {
+    "index": 160,
+    "texture": "126_roadgrid.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "roadanl.004": {
+    "index": 161,
+    "texture": "125_roadanl.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdilblue.004": {
+    "index": 162,
+    "texture": "127_roadb.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdilgreen.004": {
+    "index": 163,
+    "texture": "128_roadg.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "inerfield.004": {
+    "index": 164,
+    "texture": "119_external-ac.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "roada.008": {
+    "index": 165,
+    "texture": "129_roada.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "rdilblack.004": {
+    "index": 166,
+    "texture": "130_roadc.dds.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "grassv2a.004": {
+    "index": 167,
+    "texture": "131_grass2_D.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "Material_#5163.004": {
+    "index": 168,
+    "texture": "132_interlagos_land.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "Material_#5385.004": {
+    "index": 169,
+    "texture": "133_Pelotas.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "pit_toldo.004": {
+    "index": 170,
+    "texture": "019_brz_pit_garages_alphaaa.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8775255084037781
+  },
+  "tree_2.004": {
+    "index": 171,
+    "texture": "134_trees2b.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  },
+  "trees.004": {
+    "index": 172,
+    "texture": "135_trees_B.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "pit-glass.004": {
+    "index": 173,
+    "texture": "019_brz_pit_garages_alphaaa.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.6127016544342041
+  },
+  "gstands_seats_chroma.004": {
+    "index": 174,
+    "texture": "028_gstands_seats.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8585786819458008
+  },
+  "bushes.004": {
+    "index": 175,
+    "texture": "136_trees.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.9683772325515747
+  },
+  "roada.009": {
+    "index": 176,
+    "texture": "129_roada.png",
+    "baseColor": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "metallic": 0,
+    "roughness": 0.8999999761581421
+  }
+}

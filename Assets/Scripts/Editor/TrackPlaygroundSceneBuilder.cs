@@ -13,12 +13,10 @@ namespace F1Sim.Editor
         [MenuItem("Tools/F1 Signature/Setup Track Scene")]
         public static void SetupTrackSceneMenu()
         {
-            // 1. First build the track meshes & scenery if not already done
-            TrackMeshBaker.BuildTrackMenu();
-            SceneryBuilder.BuildSceneryMenu();
+            // 1. Build authentic 3D Interlagos track model if missing
+            F1Sim.EditorTools.InterlagosTrackProcessor.BuildTrack();
 
             string scenePath = "Assets/Scenes/Track_F1Signature.unity";
-            string sampleScenePath = "Assets/Scenes/Playground.unity";
 
             // Open or create the scene
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
@@ -115,14 +113,13 @@ namespace F1Sim.Editor
             Debug.Log($"[TrackPlaygroundSceneBuilder] Saved scene to {scenePath}");
 
             // Update Build Settings:
-            // Make Assets/Scenes/Track_F1Signature.unity index 0, and SampleScene (Playground) index 1
+            // Only Assets/Scenes/Track_F1Signature.unity index 0
             var buildScenes = new EditorBuildSettingsScene[]
             {
-                new EditorBuildSettingsScene(scenePath, true),
-                new EditorBuildSettingsScene(sampleScenePath, true)
+                new EditorBuildSettingsScene(scenePath, true)
             };
             EditorBuildSettings.scenes = buildScenes;
-            Debug.Log($"[TrackPlaygroundSceneBuilder] Updated EditorBuildSettings with Track_F1Signature (index 0) and SampleScene (index 1).");
+            Debug.Log($"[TrackPlaygroundSceneBuilder] Updated EditorBuildSettings with Track_F1Signature (index 0).");
         }
     }
 }

@@ -20,6 +20,18 @@ def run():
         bin_len, bin_type = struct.unpack('<II', f.read(8))
         bin_data = f.read(bin_len)
 
+    # Load existing track centerline for track collision / object filtering
+    track_samples = None
+    cl_tree = None
+    track_json_path = 'Assets/Data/Tracks/f1sig_track.json'
+    if os.path.exists(track_json_path):
+        with open(track_json_path, 'r', encoding='utf-8') as f:
+            t_data = json.load(f)
+            track_samples = t_data.get('samples', [])
+            if len(track_samples) > 0:
+                cl_pts = np.array([[s['x'], s['y'], s['z']] for s in track_samples])
+                cl_tree = cKDTree(cl_pts[:, [0, 2]])
+
     # Clean previous generated data
     if os.path.exists(out_dir):
         shutil.rmtree(out_dir)
@@ -50,9 +62,9 @@ def run():
     Z0 = 0.00
 
     city_keywords = [
-        'house', 'flat', 'outerbuild', 'bgbuild', 'city', 'predio', 'redbuild', 
+        'house', 'flat', 'outerbuild', 'bgbuild', 'city', 'redbuild', 
         'prhouse', 't56_build', 'watertower', 'paddock_light', 'floodlight_lamp',
-        'material_#5258', 'material_#5163', 'outer', 'pr_brickwall', 'vidro_predio'
+        'material_#5258', 'material_#5163', 'outer', 'pr_brickwall'
     ]
 
     road_keywords = [
@@ -137,6 +149,7 @@ def run():
             bv_uv = bufferViews[uv_acc['bufferView']] if uv_acc else None
             uv_offset = (bv_uv.get('byteOffset', 0) + uv_acc.get('byteOffset', 0)) if uv_acc else None
 
+            prim_verts = []
             for v in range(cnt):
                 rx, ry, rz = struct.unpack_from('<fff', bin_data, pos_offset + v * 12)
                 # Mirrored track:
@@ -158,7 +171,7 @@ def run():
                 else:
                     uu, uv = 0.0, 0.0
 
-                cat_verts.append((ux, uy, uz, unx, uny, unz, uu, uv))
+                prim_verts.append((ux, uy, uz, unx, uny, unz, uu, uv))
 
             # Indices: reversed winding to keep front-facing polygons with negated X
             bv_idx = bufferViews[idx_acc['bufferView']]
@@ -174,14 +187,78 @@ def run():
                 for j in range(idx_cnt):
                     raw_indices.append(struct.unpack_from('<I', bin_data, idx_offset + j * 4)[0])
 
-            indices = []
+            # Filter triangles (eliminate tall collision planes in cmwall & rogue objects on track before T12)
+            valid_tris = []
+            mlow = mat_name.lower()
+            is_cmwall = 'cmwall' in mlow
+            is_silverbars = 'silverbars' in mlow
+            is_distmarker = 'distmarker' in mlow
+            is_drain_or_crete = 'concdrain' in mlow or 'creteg' in mlow
+            is_barrier = 'wall' in mlow or 'armco' in mlow or 'fence' in mlow
+
             for t in range(0, idx_cnt, 3):
-                indices.append(vert_offset + raw_indices[t])
-                indices.append(vert_offset + raw_indices[t + 2])
-                indices.append(vert_offset + raw_indices[t + 1])
+                idx0 = raw_indices[t]
+                idx1 = raw_indices[t + 2] # reversed winding
+                idx2 = raw_indices[t + 1]
+
+                v0 = prim_verts[idx0]
+                v1 = prim_verts[idx1]
+                v2 = prim_verts[idx2]
+
+                if is_cmwall:
+                    tri_dy = max(v0[1], v1[1], v2[1]) - min(v0[1], v1[1], v2[1])
+                    if tri_dy > 4.0:
+                        continue # Drop tall glitch collision plane
+
+                # 1. Drop rogue silverbars gantry completely
+                if is_silverbars:
+                    continue
+
+                if cl_tree is not None and track_samples is not None:
+                    cen_x = (v0[0] + v1[0] + v2[0]) / 3.0
+                    cen_y = (v0[1] + v1[1] + v2[1]) / 3.0
+                    cen_z = (v0[2] + v1[2] + v2[2]) / 3.0
+                    dist, idx = cl_tree.query([cen_x, cen_z])
+                    s_val = track_samples[idx]['s']
+                    dy = cen_y - track_samples[idx]['y']
+
+                    # 2. Drop distance markers on track roadway or broken pole near T11/T12
+                    if is_distmarker and (dist <= 8.5 or (2920 <= s_val <= 3000)):
+                        continue
+
+                    # 3. Drop objects on or encroaching track before Turn 12 (s in [2700, 3300])
+                    if 2700 <= s_val <= 3300:
+                        if is_drain_or_crete and dist <= 10.0:
+                            continue # Drop concrete drain/slabs on/beside track before T12
+                        if is_barrier and dist <= 7.5 and dy > -0.5:
+                            continue # Drop barriers encroaching into track width
+
+                valid_tris.append((idx0, idx1, idx2))
+
+            if len(valid_tris) == 0:
+                continue
+
+            # Only include referenced vertices
+            used_indices = set()
+            for idx0, idx1, idx2 in valid_tris:
+                used_indices.add(idx0)
+                used_indices.add(idx1)
+                used_indices.add(idx2)
+
+            used_list = sorted(list(used_indices))
+            remap = {old_idx: new_idx for new_idx, old_idx in enumerate(used_list)}
+
+            for old_idx in used_list:
+                cat_verts.append(prim_verts[old_idx])
+
+            indices = []
+            for idx0, idx1, idx2 in valid_tris:
+                indices.append(vert_offset + remap[idx0])
+                indices.append(vert_offset + remap[idx1])
+                indices.append(vert_offset + remap[idx2])
 
             submeshes.append((mat_name, indices))
-            vert_offset += cnt
+            vert_offset += len(used_list)
 
         # Write binary file
         bin_path = os.path.join(out_dir, f"{cat_name}.bin")

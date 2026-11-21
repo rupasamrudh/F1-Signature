@@ -127,8 +127,8 @@ namespace F1Sim.Simulation.Track
                 }
             }
 
-            // Only fallback to global scan if car is way off track (> 60m distance)
-            if (bestDistSq > 3600f)
+            // Only fallback to global scan if car is off local search window (> 25m distance)
+            if (bestDistSq > 625f)
             {
                 for (int i = 0; i < Count; i++)
                 {

@@ -1,5 +1,5 @@
-timestamp=2026-11-12 20:41:35
-gitHash=7369500
+timestamp=2026-11-21 13:40:44
+gitHash=6d4c556
 unityVersion=6000.6.8f1
 versionCode=1
-scenes=Track_F1Signature;Playground
+scenes=Track_F1Signature

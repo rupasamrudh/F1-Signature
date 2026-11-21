@@ -119,31 +119,106 @@ namespace F1Sim.EditorTools
                     mat.SetFloat("_Smoothness", 0.20f);
                 }
 
-                mat.SetFloat("_Metallic", 0.0f);
+                // ── Steel / Armco barriers — PBR galvanized steel ──────────────
+                bool isArmco = mlow.Contains("armco") || mlow.Contains("silverbars") ||
+                               mlow.Contains("guardrail") || mlow.Contains("armcopost");
+                if (isArmco)
+                {
+                    mat.SetFloat("_Metallic", 0.72f);
+                    mat.SetFloat("_Smoothness", 0.52f);
+                    mat.SetFloat("_GlossMapScale", 1.0f);
+                    mat.SetFloat("_SpecularHighlights", 1.0f);
+                    mat.SetFloat("_EnvironmentReflections", 1.0f);
+                    mat.SetFloat("_GlossyReflections", 1.0f);
+                    mat.DisableKeyword("_SPECULARHIGHLIGHTS_OFF");
+                    mat.SetTexture("_BumpMap", null);
+                    mat.DisableKeyword("_NORMALMAP");
+                }
+                else
+                {
+                    mat.SetFloat("_Metallic", 0.0f);
 
-                // Disable normal mapping and specular fireflies
-                mat.SetTexture("_BumpMap", null);
-                mat.DisableKeyword("_NORMALMAP");
-                mat.SetFloat("_SpecularHighlights", 0.0f);
-                mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+                    // Disable normal mapping and specular fireflies on non-steel surfaces
+                    mat.SetTexture("_BumpMap", null);
+                    mat.DisableKeyword("_NORMALMAP");
+                    mat.SetFloat("_SpecularHighlights", 0.0f);
+                    mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+                }
 
-                // Cutout / Alpha Test for fences, vegetation, wires
+                // Identify material categories
+                bool isShadowOrEmpty = mlow.Contains("5165") || mlow.Contains("5386") || mlow.Contains("5387") || 
+                                       mlow.Contains("multimat_134_slot") || mlow.Contains("genshadow");
+
+                bool isTireDecal = mlow.Contains("groove") || mlow.Contains("marbles");
+
                 bool isCutout = mlow.Contains("fence") || mlow.Contains("tree") || mlow.Contains("bush") ||
                                 mlow.Contains("chroma") || mlow.Contains("wire") || mlow.Contains("arvore") ||
-                                mlow.Contains("screen") || mlow.Contains("grade");
+                                mlow.Contains("screen") || mlow.Contains("grade") || mlow.Contains("bars") ||
+                                mlow.Contains("outerbuild") || mlow.Contains("bgbuild") || mlow.Contains("prhousefront") ||
+                                mlow.Contains("bigradio") || mlow.Contains("alpha") || mlow.Contains("toldo");
 
-                if (isCutout)
+                bool isTwoSided = isCutout || mlow.Contains("wall") || mlow.Contains("armco") || mlow.Contains("tyre") ||
+                                  mlow.Contains("guard") || mlow.Contains("gstand") || mlow.Contains("roof") ||
+                                  mlow.Contains("teto") || mlow.Contains("toldo") || mlow.Contains("tent") ||
+                                  mlow.Contains("gantry") || mlow.Contains("support") || mlow.Contains("pole") ||
+                                  mlow.Contains("pillar") || mlow.Contains("tower") || mlow.Contains("sign") ||
+                                  mlow.Contains("banner") || mlow.Contains("advert") || mlow.Contains("stall") ||
+                                  mlow.Contains("door") || mlow.Contains("portao") || mlow.Contains("predio");
+
+                if (isTwoSided)
                 {
+                    mat.SetFloat("_Cull", 0.0f); // Double-Sided (Off)
+                }
+                else
+                {
+                    mat.SetFloat("_Cull", 2.0f); // Backface culling
+                }
+
+                if (isShadowOrEmpty)
+                {
+                    // Transparent invisible decal (never render as black pitch slabs)
+                    mat.SetFloat("_Surface", 1.0f);
+                    mat.SetFloat("_Blend", 0.0f);
+                    mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    mat.SetFloat("_ZWrite", 0.0f);
+                    mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, 0f));
+                    mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    mat.SetOverrideTag("RenderType", "Transparent");
+                    mat.renderQueue = 3000;
+                }
+                else if (isTireDecal)
+                {
+                    // Groove / Marbles translucent decal
+                    mat.SetFloat("_Surface", 1.0f);
+                    mat.SetFloat("_Blend", 0.0f);
+                    mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                    mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                    mat.SetFloat("_ZWrite", 0.0f);
+                    mat.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0.25f));
+                    mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    mat.SetOverrideTag("RenderType", "Transparent");
+                    mat.renderQueue = 3000;
+                }
+                else if (isCutout)
+                {
+                    mat.SetFloat("_Surface", 0.0f);
                     mat.SetFloat("_AlphaClip", 1.0f);
-                    mat.SetFloat("_Cutoff", 0.5f);
+                    mat.SetFloat("_Cutoff", mlow.Contains("tree") || mlow.Contains("bush") ? 0.5f : 0.33f);
+                    mat.SetFloat("_ZWrite", 1.0f);
                     mat.EnableKeyword("_ALPHATEST_ON");
+                    mat.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
                     mat.SetOverrideTag("RenderType", "TransparentCutout");
                     mat.renderQueue = 2450;
                 }
                 else
                 {
+                    // All road surfaces (roadanl, roadsf, roadd, roada, roadpits, creteg, rdil*), terrain, curbs, barriers, etc. are OPAQUE
+                    mat.SetFloat("_Surface", 0.0f);
                     mat.SetFloat("_AlphaClip", 0.0f);
+                    mat.SetFloat("_ZWrite", 1.0f);
                     mat.DisableKeyword("_ALPHATEST_ON");
+                    mat.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
                     mat.SetOverrideTag("RenderType", "Opaque");
                     mat.renderQueue = 2000;
                 }

@@ -673,7 +673,7 @@
   },
   "MultiMat_134_Slot_#1.004": {
     "index": 56,
-    "texture": "053_SRPL_EMPTY.png",
+    "texture": "035_grey_metal.png",
     "baseColor": [
       1.0,
       1.0,
@@ -1789,7 +1789,7 @@
   },
   "Material_#5387.004": {
     "index": 149,
-    "texture": "119_external-ac.png",
+    "texture": "035_grey_metal.png",
     "baseColor": [
       1.0,
       1.0,
@@ -1801,7 +1801,7 @@
   },
   "Material_#5386.004": {
     "index": 150,
-    "texture": "119_external-ac.png",
+    "texture": "035_grey_metal.png",
     "baseColor": [
       1.0,
       1.0,
@@ -1813,7 +1813,7 @@
   },
   "Material_#5165.004": {
     "index": 151,
-    "texture": "119_external-ac.png",
+    "texture": "035_grey_metal.png",
     "baseColor": [
       1.0,
       1.0,
@@ -1969,7 +1969,7 @@
   },
   "inerfield.004": {
     "index": 164,
-    "texture": "119_external-ac.png",
+    "texture": "131_grass2_D.png",
     "baseColor": [
       1.0,
       1.0,

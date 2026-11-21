@@ -347,7 +347,7 @@ namespace F1Sim.EditorTools
 
             while (mats.Count < expectedCount)
             {
-                mats.Add(AssetDatabase.LoadAssetAtPath<Material>($"{matDir}/sf25_paints.mat"));
+                mats.Add(AssetDatabase.LoadAssetAtPath<Material>($"{matDir}/sf26_paints.mat"));
             }
 
             return mats.ToArray();

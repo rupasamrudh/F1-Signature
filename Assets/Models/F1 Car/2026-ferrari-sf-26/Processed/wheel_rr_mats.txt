@@ -1,4 +1,4 @@
 discs.008
 tyre_sides
-sf25_wheel_hub
+sf26_wheel_hub
 tyre_tread

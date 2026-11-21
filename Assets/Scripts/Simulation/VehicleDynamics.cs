@@ -25,6 +25,8 @@ namespace F1Sim.Simulation
         // Steering state
         public float steerAngle;      // driver commanded after rate limit (rad, left-positive)
         public float finalSteerAngle; // after stability assist
+        public float steerAngleFL;    // Ackermann steer angle on FL (rad)
+        public float steerAngleFR;    // Ackermann steer angle on FR (rad)
 
         // Per-wheel states (0=FL,1=FR,2=RL,3=RR)
         public readonly WheelState[] Wheels = new WheelState[4]
@@ -46,6 +48,8 @@ namespace F1Sim.Simulation
         public float BetaDeg           => Beta * (180f / MathF.PI);
         public float FinalSteerAngleDeg => finalSteerAngle * (180f / MathF.PI);
         public float DriverSteerAngleDeg => steerAngle * (180f / MathF.PI);
+        public float SteerFLDeg         => steerAngleFL * (180f / MathF.PI);
+        public float SteerFRDeg         => steerAngleFR * (180f / MathF.PI);
         public float DeltaAssist        { get; private set; }
         public float AssistDeg          => DeltaAssist * (180f / MathF.PI);
         public float RearTractionUse    { get; private set; }
@@ -106,7 +110,7 @@ namespace F1Sim.Simulation
         {
             X = x; Z = z; Yaw = yaw;
             Vx = 0f; Vy = 0f; R = 0f; Ax = 0f; ayBody = 0f; fyBodyReal = 0f;
-            steerAngle = 0f; finalSteerAngle = 0f; DeltaAssist = 0f;
+            steerAngle = 0f; finalSteerAngle = 0f; steerAngleFL = 0f; steerAngleFR = 0f; DeltaAssist = 0f;
             RearTractionUse = 0f; RearLateralGripScale = 1f;
             FzFL = FzFR = FzRL = FzRR = 0f;
             muScaleRL = 1.0f; muScaleRR = 1.0f;
@@ -253,10 +257,10 @@ namespace F1Sim.Simulation
             float rRef = Vx * MathF.Tan(steerAngle) / L;
             float assistFade = Math.Clamp(speed / 3f, 0f, 1f);
 
-            // Subtle deadband prevents counter-steer from fighting normal turn-in
-            float betaEff = MathF.Abs(beta) > 0.02f ? beta : 0f;
+            // Subtle continuous deadband prevents counter-steer from fighting normal turn-in or jittering
+            float betaEff = MathF.Abs(beta) > 0.02f ? MathF.Sign(beta) * (MathF.Abs(beta) - 0.02f) : 0f;
             float yawErr  = (R - rRef);
-            float yawEff  = MathF.Abs(yawErr) > 0.03f ? yawErr : 0f;
+            float yawEff  = MathF.Abs(yawErr) > 0.03f ? MathF.Sign(yawErr) * (MathF.Abs(yawErr) - 0.03f) : 0f;
 
             float daTarget = P.stabilityAssist * (P.kBeta * betaEff - P.kYaw * yawEff) * assistFade;
             daTarget = Math.Clamp(daTarget, -P.maxAssistAngle, P.maxAssistAngle);
@@ -267,6 +271,8 @@ namespace F1Sim.Simulation
             // Apply assist to both front wheels equally
             deltaFL += DeltaAssist;
             deltaFR += DeltaAssist;
+            steerAngleFL = deltaFL;
+            steerAngleFR = deltaFR;
             finalSteerAngle = (deltaFL + deltaFR) * 0.5f;
 
             // ── Brake-while-cornering coupling ────────────────────────────────
@@ -436,16 +442,16 @@ namespace F1Sim.Simulation
             Wheels[3].kappaLag = (Wheels[3].omega * rTire - vxRR) / baseRR;
 
             // Actual drive forces delivered to chassis (limited by Pacejka grip)
-            float fxDriveRL = MathF.Min(demandRL, fxMaxRL);
-            float fxDriveRR = MathF.Min(demandRR, fxMaxRR);
+            float fxDriveRL = Math.Clamp(demandRL, -fxMaxRL, fxMaxRL);
+            float fxDriveRR = Math.Clamp(demandRR, -fxMaxRR, fxMaxRR);
 
             // Cap rear drive force so lateral grip scale never drops below rearLateralReserve
             if (P.rearLateralReserve > 0f)
             {
                 float capRL = fxMaxRL * maxRearLongFrac;
                 float capRR = fxMaxRR * maxRearLongFrac;
-                fxDriveRL = MathF.Min(fxDriveRL, capRL);
-                fxDriveRR = MathF.Min(fxDriveRR, capRR);
+                fxDriveRL = Math.Clamp(fxDriveRL, -capRL, capRL);
+                fxDriveRR = Math.Clamp(fxDriveRR, -capRR, capRR);
             }
 
             // Per-wheel longitudinal forces (positive = forward)
@@ -516,7 +522,7 @@ namespace F1Sim.Simulation
 
             // Rolling drag per wheel scaled by surfaceDrag
             float avgSurfaceDrag = (surfaceDragFL + surfaceDragFR + surfaceDragRL + surfaceDragRR) * 0.25f;
-            float rolling = Vx > 0.1f ? P.rollingRes * P.mass * 9.81f * avgSurfaceDrag : 0f;
+            float rolling = MathF.Abs(Vx) > 0.1f ? MathF.Sign(Vx) * P.rollingRes * P.mass * 9.81f * avgSurfaceDrag : 0f;
 
             // Longitudinal gravity component: mass * g * sin(pitch)
             // positive pitch (uphill) opposes forward motion (-); downhill assists (+)
@@ -567,10 +573,19 @@ namespace F1Sim.Simulation
             // ── Low-speed kinematic blend ─────────────────────────────────────
             if (Vx < P.vBlend)
             {
-                float w    = Vx / P.vBlend;
-                float rKin = Vx * MathF.Tan(finalSteerAngle) / L;
-                R  = rKin + (R - rKin) * w;
-                Vy *= w;
+                if (Vx <= 0f)
+                {
+                    float rKin = Vx * MathF.Tan(finalSteerAngle) / L;
+                    R  = rKin;
+                    Vy = 0f;
+                }
+                else
+                {
+                    float w    = Math.Clamp(Vx / P.vBlend, 0f, 1f);
+                    float rKin = Vx * MathF.Tan(finalSteerAngle) / L;
+                    R  = rKin + (R - rKin) * w;
+                    Vy *= w;
+                }
             }
 
             // ── World integration ─────────────────────────────────────────────

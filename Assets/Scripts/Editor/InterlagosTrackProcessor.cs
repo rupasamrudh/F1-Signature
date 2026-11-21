@@ -12,7 +12,7 @@ namespace F1Sim.EditorTools
     {
         public static bool includeScenery = false; // City is permanently excluded in Python GLB processor
         public static bool includeVegetation = true; // Infield trees and bushes
-        // Trigger build v3 (authentic track with original walls, barriers, runoffs, shortcut tracks, grass/gravel, trackside)
+        // Trigger build v4 (clean track before Turn 12, removed rogue gantry, distance marker post, concrete drains and barrier encroachments)
 
         static InterlagosTrackProcessor()
         {

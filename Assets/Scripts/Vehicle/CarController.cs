@@ -18,6 +18,8 @@ public class CarController : MonoBehaviour
     public float LatG     => model != null ? model.LatG : 0f;
     public float YawRate  => model != null ? model.YawRate : 0f;
     public float SteerAngleDeg => model != null ? model.FinalSteerAngleDeg : 0f;
+    public float SteerAngleDegFL => model != null ? model.SteerFLDeg : SteerAngleDeg;
+    public float SteerAngleDegFR => model != null ? model.SteerFRDeg : SteerAngleDeg;
     public float Throttle => input != null ? input.Throttle : 0f;
     public float Brake => input != null ? input.Brake : 0f;
     public float EngineRpm => model != null ? model.EngineRpm : 1000f;
@@ -73,6 +75,7 @@ public class CarController : MonoBehaviour
     float smoothPitchDeg;
     float smoothRollDeg;
     bool  isGroundInitialized = false;
+    bool  isCarOverRoadOrKerb = false;
 
     // ── Minimap ────────────────────────────────────────────────────────────
     Texture2D minimapTex;
@@ -129,6 +132,7 @@ public class CarController : MonoBehaviour
 
     void Awake()
     {
+        Physics.queriesHitBackfaces = true;
         input = GetComponent<CarInput>();
 
         // Ensure Vehicle Audio System is initialized on the vehicle hierarchy
@@ -398,23 +402,37 @@ public class CarController : MonoBehaviour
             var qRL = spline.Query(posRL.x, posRL.y, carSplineIndex);
             var qRR = spline.Query(posRR.x, posRR.y, carSplineIndex);
 
-            // Set surface grip & rolling drag
-            (model.surfaceGripFL, model.surfaceDragFL) = GetSurfaceProps(qFL.surface);
-            (model.surfaceGripFR, model.surfaceDragFR) = GetSurfaceProps(qFR.surface);
-            (model.surfaceGripRL, model.surfaceDragRL) = GetSurfaceProps(qRL.surface);
-            (model.surfaceGripRR, model.surfaceDragRR) = GetSurfaceProps(qRR.surface);
+            // Real 3D Physical Ground Height & Road Mesh Detection from Track Mesh Colliders for each wheel
+            float groundFL = GetWheelGroundHeight(posFL.x, posFL.y, qFL.heightY, out bool roadFL);
+            float groundFR = GetWheelGroundHeight(posFR.x, posFR.y, qFR.heightY, out bool roadFR);
+            float groundRL = GetWheelGroundHeight(posRL.x, posRL.y, qRL.heightY, out bool roadRL);
+            float groundRR = GetWheelGroundHeight(posRR.x, posRR.y, qRR.heightY, out bool roadRR);
 
-            allWheelsOff = (qFL.surface != SurfaceType.Asphalt) && (qFR.surface != SurfaceType.Asphalt) &&
-                           (qRL.surface != SurfaceType.Asphalt) && (qRR.surface != SurfaceType.Asphalt);
+            isCarOverRoadOrKerb = roadFL || roadFR || roadRL || roadRR;
+
+            // Set surface grip & rolling drag
+            bool inPit = IsInPitCorridor(model.X, model.Z);
+            if (inPit || isCarOverRoadOrKerb)
+            {
+                (model.surfaceGripFL, model.surfaceDragFL) = (asphaltGrip, asphaltDrag);
+                (model.surfaceGripFR, model.surfaceDragFR) = (asphaltGrip, asphaltDrag);
+                (model.surfaceGripRL, model.surfaceDragRL) = (asphaltGrip, asphaltDrag);
+                (model.surfaceGripRR, model.surfaceDragRR) = (asphaltGrip, asphaltDrag);
+                allWheelsOff = false;
+            }
+            else
+            {
+                (model.surfaceGripFL, model.surfaceDragFL) = GetSurfaceProps(qFL.surface);
+                (model.surfaceGripFR, model.surfaceDragFR) = GetSurfaceProps(qFR.surface);
+                (model.surfaceGripRL, model.surfaceDragRL) = GetSurfaceProps(qRL.surface);
+                (model.surfaceGripRR, model.surfaceDragRR) = GetSurfaceProps(qRR.surface);
+
+                allWheelsOff = (qFL.surface != SurfaceType.Asphalt) && (qFR.surface != SurfaceType.Asphalt) &&
+                               (qRL.surface != SurfaceType.Asphalt) && (qRR.surface != SurfaceType.Asphalt);
+            }
 
             // ── Physical Barrier Collision Resolution (Dual 3D Mesh + Envelope) ───
             ResolveBarrierCollisions(qCar);
-
-            // Real 3D Physical Ground Height from Track Mesh Colliders for each wheel
-            float groundFL = GetWheelGroundHeight(posFL.x, posFL.y, qFL.heightY);
-            float groundFR = GetWheelGroundHeight(posFR.x, posFR.y, qFR.heightY);
-            float groundRL = GetWheelGroundHeight(posRL.x, posRL.y, qRL.heightY);
-            float groundRR = GetWheelGroundHeight(posRR.x, posRR.y, qRR.heightY);
 
             float avgWheelY = (groundFL + groundFR + groundRL + groundRR) * 0.25f;
             float targetPitchDeg = Mathf.Atan2((groundRL + groundRR) * 0.5f - (groundFL + groundFR) * 0.5f, L) * Mathf.Rad2Deg;
@@ -435,12 +453,28 @@ public class CarController : MonoBehaviour
             }
             else
             {
-                // F1-grade critical suspension damping:
-                // Fast 35 rad/s rate settles in ~30ms, completely eliminating vibration, jitter, and bouncing
-                smoothGroundY = Mathf.Lerp(smoothGroundY, targetY, 1f - Mathf.Exp(-35f * dt));
-                smoothPitchDeg = Mathf.LerpAngle(smoothPitchDeg, targetPitchDeg, 1f - Mathf.Exp(-30f * dt));
-                smoothRollDeg = Mathf.LerpAngle(smoothRollDeg, targetRollDeg, 1f - Mathf.Exp(-30f * dt));
+                // F1-grade critical suspension damping (20 rad/s ~ 50ms settling):
+                // Absorbs micro-elevation changes and road-triangle facets, completely eliminating vibration, jitter, and bouncing
+                smoothGroundY = Mathf.Lerp(smoothGroundY, targetY, 1f - Mathf.Exp(-20f * dt));
+                smoothPitchDeg = Mathf.LerpAngle(smoothPitchDeg, targetPitchDeg, 1f - Mathf.Exp(-20f * dt));
+                smoothRollDeg = Mathf.LerpAngle(smoothRollDeg, targetRollDeg, 1f - Mathf.Exp(-20f * dt));
             }
+        }
+
+        stepTimer.Restart();
+        float prevStepX = model.X;
+        float prevStepZ = model.Z;
+        model.Step(Time.fixedDeltaTime, steerCmd, thrCmd, brkCmd);
+        stepTimer.Stop();
+
+        // ── Continuous Collision Detection (CCD) Anti-Tunneling Sweep ────
+        EnforceSweptContinuousCollision(prevStepX, prevStepZ);
+
+        // Enforce physical barriers immediately after vehicle motion step
+        if (spline != null)
+        {
+            var qAfter = spline.Query(model.X, model.Z, carSplineIndex);
+            ResolveBarrierCollisions(qAfter);
 
             currPos = new Vector3(model.X, smoothGroundY, model.Z);
             currRot = Quaternion.Euler(smoothPitchDeg, model.Yaw * Mathf.Rad2Deg, smoothRollDeg);
@@ -449,17 +483,6 @@ public class CarController : MonoBehaviour
         {
             currPos = new Vector3(model.X, startPos.y, model.Z);
             currRot = Quaternion.Euler(0f, model.Yaw * Mathf.Rad2Deg, 0f);
-        }
-
-        stepTimer.Restart();
-        model.Step(Time.fixedDeltaTime, steerCmd, thrCmd, brkCmd);
-        stepTimer.Stop();
-
-        // Enforce physical barriers immediately after vehicle motion step
-        if (spline != null)
-        {
-            var qAfter = spline.Query(model.X, model.Z, carSplineIndex);
-            ResolveBarrierCollisions(qAfter);
         }
 
         float ms = (float)stepTimer.Elapsed.TotalMilliseconds;
@@ -480,7 +503,8 @@ public class CarController : MonoBehaviour
         currYaw = model.Yaw;
 
         // Auto-reset check: only if car somehow goes > 6m outside the physical barrier
-        if (spline != null)
+        // Do not auto-reset when the vehicle is driving inside the pitlane or over road mesh
+        if (spline != null && !IsInPitCorridor(model.X, model.Z) && !isCarOverRoadOrKerb)
         {
             var qCheck = spline.Query(model.X, model.Z, carSplineIndex);
             float offTrackLimit = Mathf.Max(qCheck.barrierLeft, qCheck.barrierRight) + 6.0f;
@@ -494,6 +518,10 @@ public class CarController : MonoBehaviour
                 offTrackTimer = 0f;
             }
         }
+        else
+        {
+            offTrackTimer = 0f;
+        }
 
         if (model.TotalSpeedKmh < 3f && MathF.Abs(model.Beta) > 1.2f)
         {
@@ -504,6 +532,24 @@ public class CarController : MonoBehaviour
         {
             autoResetTimer = 0f;
         }
+    }
+
+    /// <summary>
+    /// Checks whether world coordinates (x, z) are located within the Interlagos pitlane corridor or pit exit chute.
+    /// The physical 3D pit wall, armco barriers, and garage structures handle collision via real MeshColliders.
+    /// </summary>
+    public bool IsInPitCorridor(float x, float z)
+    {
+        // 1. Main pit straight / garages / pit entry (X in [-70, -5], Z in [-330, 385])
+        if (x >= -70f && x <= -5f && z >= -330f && z <= 385f)
+            return true;
+
+        // 2. Complete Pit Exit chute from pit exit lights through Senna S and Curva do Sol (Turn 3)
+        // all the way to the Reta Oposta blend (X in [-470, -15], Z in [335, 495])
+        if (x >= -470f && x <= -15f && z >= 335f && z <= 495f)
+            return true;
+
+        return false;
     }
 
     (float grip, float drag) GetSurfaceProps(SurfaceType surface)
@@ -518,118 +564,224 @@ public class CarController : MonoBehaviour
         };
     }
 
-    // ── Physical Barrier Collision Resolution (Dual 3D Mesh + Envelope) ───
-    void ResolveBarrierCollisions(TrackQueryResult q)
+    bool IsBarrierCollider(Collider col, Vector3 normal)
     {
-        float carYaw = model.Yaw;
-        float cosY = Mathf.Cos(carYaw);
-        float sinY = Mathf.Sin(carYaw);
+        if (col == null || col.transform.root == transform) return false;
+        string colName = col.gameObject.name.ToLowerInvariant();
 
-        Vector3 carCenter = new Vector3(model.X, smoothGroundY + 0.45f, model.Z);
-
-        // 1. Physical 3D MeshCollider Raycast Feelers against Track_Barriers & Track_Trackside
-        (float angle, float radius)[] feelers = new (float, float)[]
+        // 1. Any collider in Track_Barriers or with barrier/wall/armco/fence/tyre/guard/concw in its name
+        if (colName.Contains("barrier") || colName.Contains("wall") || colName.Contains("armco") ||
+            colName.Contains("fence") || colName.Contains("tyre") || colName.Contains("guard") ||
+            colName.Contains("concw"))
         {
-            (0f, 2.7f),     // Nose
-            (25f, 2.4f),    // Front-Right corner
-            (50f, 1.8f),    // Right front wing
-            (90f, 1.15f),   // Right sidepod / wheels
-            (130f, 1.8f),   // Right rear corner
-            (155f, 2.3f),   // Rear-Right wing
-            (180f, 2.5f),   // Tail / diffuser
-            (205f, 2.3f),   // Rear-Left wing
-            (230f, 1.8f),   // Left rear corner
-            (270f, 1.15f),  // Left sidepod / wheels
-            (310f, 1.8f),   // Left front wing
-            (335f, 2.4f)    // Front-Left corner
+            return true;
+        }
+
+        // 2. Trackside structures (pit building facades, bridge pillars, grandstand concrete bases, gantries)
+        // or steep Terrain cliffs: Any vertical surface (|normal.y| < 0.65f) is a solid barrier!
+        if (colName.Contains("trackside") || colName.Contains("terrain") || colName.Contains("building") || colName.Contains("structure"))
+        {
+            if (Mathf.Abs(normal.y) < 0.65f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void ApplyRigidCollisionResponse(Vector3 normal, float sinY, float cosY)
+    {
+        float wVx = model.Vx * sinY - model.Vy * cosY;
+        float wVz = model.Vx * cosY + model.Vy * sinY;
+        float vn = wVx * normal.x + wVz * normal.z;
+
+        if (vn < 0f)
+        {
+            OnBarrierCollision?.Invoke(Mathf.Abs(vn), normal);
+
+            float vtX = wVx - vn * normal.x;
+            float vtZ = wVz - vn * normal.z;
+
+            // Restitution 0.12 (solid wall bounce) + 40% tangential friction dissipation along the barrier
+            float newWvx = vtX * 0.60f - normal.x * (vn * 0.12f);
+            float newWvz = vtZ * 0.60f - normal.z * (vn * 0.12f);
+
+            float newBodyVx = newWvx * sinY + newWvz * cosY;
+            float newBodyVy = -newWvx * cosY + newWvz * sinY;
+
+            // Allow small backward bounce (up to -2 m/s) to push the car cleanly away from the wall
+            model.Vx = Mathf.Max(-2.0f, newBodyVx);
+            model.Vy = newBodyVy;
+        }
+    }
+
+    void EnforceSweptContinuousCollision(float prevX, float prevZ)
+    {
+        float dx = model.X - prevX;
+        float dz = model.Z - prevZ;
+        float moveDist = Mathf.Sqrt(dx * dx + dz * dz);
+        if (moveDist < 0.0005f) return;
+
+        Vector3 moveDir = new Vector3(dx, 0f, dz) / moveDist;
+        float carYaw = model.Yaw;
+        float sinY = Mathf.Sin(carYaw);
+        float cosY = Mathf.Cos(carYaw);
+        Vector3 fwd = new Vector3(sinY, 0f, cosY);
+        Vector3 right = new Vector3(cosY, 0f, -sinY);
+
+        float sweepY = smoothGroundY + 0.45f;
+        Vector3 prevCenter = new Vector3(prevX, sweepY, prevZ);
+
+        // 5 Swept Spheres covering the full F1 car bounding volume
+        (Vector3 offset, float radius)[] sweepVolumes = new (Vector3, float)[]
+        {
+            (fwd * 1.80f, 0.90f),                      // Front wing & nose
+            (Vector3.zero, 1.00f),                     // Mid chassis / sidepods
+            (-fwd * 1.50f, 0.90f),                     // Rear axle & rear wing
+            (fwd * 1.50f + right * 0.85f, 0.40f),      // Front-right wheel / wing tip
+            (fwd * 1.50f - right * 0.85f, 0.40f)       // Front-left wheel / wing tip
         };
 
-        bool had3DHit = false;
-        Vector3 totalPush = Vector3.zero;
-        Vector3 hitNormalAvg = Vector3.zero;
-        int hitCount = 0;
+        float minAllowedDist = moveDist;
+        Vector3 impactNormal = Vector3.zero;
+        bool sweptHit = false;
 
-        foreach (var (angle, radius) in feelers)
+        foreach (var (offset, r) in sweepVolumes)
         {
-            float rad = carYaw + angle * Mathf.Deg2Rad;
-            Vector3 dir = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad)).normalized;
-
-            RaycastHit[] hits = Physics.RaycastAll(carCenter, dir, radius + 0.35f, ~0, QueryTriggerInteraction.Ignore);
+            Vector3 origin = prevCenter + offset;
+            RaycastHit[] hits = Physics.SphereCastAll(origin, r, moveDir, moveDist + 0.15f, ~0, QueryTriggerInteraction.Ignore);
             foreach (var h in hits)
             {
-                if (h.transform.root == transform) continue;
-                string colName = h.collider.gameObject.name.ToLowerInvariant();
-                if (colName.Contains("barrier") || colName.Contains("trackside") || colName.Contains("wall") || colName.Contains("fence") || colName.Contains("armco"))
+                if (h.distance <= 0f) continue;
+                if (IsBarrierCollider(h.collider, h.normal))
                 {
-                    if (h.distance < radius)
+                    if (h.distance < minAllowedDist)
                     {
-                        float penetration = radius - h.distance;
+                        minAllowedDist = h.distance;
                         Vector3 n = new Vector3(h.normal.x, 0f, h.normal.z);
-                        if (n.sqrMagnitude < 0.01f) n = -dir;
-                        else n.Normalize();
-
-                        totalPush += n * (penetration + 0.08f);
-                        hitNormalAvg += n;
-                        hitCount++;
-                        had3DHit = true;
+                        if (n.sqrMagnitude > 0.01f) impactNormal = n.normalized;
+                        else impactNormal = -moveDir;
+                        sweptHit = true;
                     }
                 }
             }
         }
 
-        if (had3DHit && hitCount > 0)
+        if (sweptHit && minAllowedDist < moveDist)
         {
-            hitNormalAvg.Normalize();
-            model.X += totalPush.x / hitCount;
-            model.Z += totalPush.z / hitCount;
+            float safeDist = Mathf.Max(0f, minAllowedDist - 0.02f);
+            model.X = prevX + moveDir.x * safeDist;
+            model.Z = prevZ + moveDir.z * safeDist;
 
-            // Reflect world velocity against physical barrier surface normal
-            float wVx = model.Vx * sinY - model.Vy * cosY;
-            float wVz = model.Vx * cosY + model.Vy * sinY;
-            float vn = wVx * hitNormalAvg.x + wVz * hitNormalAvg.z;
+            ApplyRigidCollisionResponse(impactNormal, sinY, cosY);
+        }
+    }
 
-            if (vn < 0f)
+    // ── Physical Barrier Collision Resolution (Dual 3D Mesh + Envelope) ───
+    void ResolveBarrierCollisions(TrackQueryResult q)
+    {
+        float carYaw = model.Yaw;
+        float sinY = Mathf.Sin(carYaw);
+        float cosY = Mathf.Cos(carYaw);
+
+        // 1. Physical 3D MeshCollider Contact Feelers
+        (float angle, float radius)[] feelers = new (float, float)[]
+        {
+            (0f, 2.75f),     // Nose center
+            (20f, 2.50f),    // Front-right wing
+            (45f, 2.00f),    // Front-right corner / wheel
+            (90f, 1.10f),    // Right sidepod / flank
+            (135f, 1.90f),   // Rear-right corner / wheel
+            (160f, 2.40f),   // Rear-right wing
+            (180f, 2.55f),   // Tail / diffuser center
+            (200f, 2.40f),   // Rear-left wing
+            (225f, 1.90f),   // Rear-left corner / wheel
+            (270f, 1.10f),   // Left sidepod / flank
+            (315f, 2.00f),   // Front-left corner / wheel
+            (340f, 2.50f)    // Front-left wing
+        };
+
+        float maxPenetration = 0f;
+        Vector3 pushNormalAvg = Vector3.zero;
+        int hitCount = 0;
+
+        float[] heights = new float[] { smoothGroundY + 0.30f, smoothGroundY + 0.60f };
+
+        foreach (float hY in heights)
+        {
+            Vector3 origin = new Vector3(model.X, hY, model.Z);
+            foreach (var (angle, radius) in feelers)
             {
-                OnBarrierCollision?.Invoke(Mathf.Abs(vn), hitNormalAvg);
-                float vtX = wVx - vn * hitNormalAvg.x;
-                float vtZ = wVz - vn * hitNormalAvg.z;
+                float rad = carYaw + angle * Mathf.Deg2Rad;
+                Vector3 dir = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad)).normalized;
 
-                // Restitution 0.15 + tangential friction dissipation
-                float newWvx = vtX * 0.70f - hitNormalAvg.x * (vn * 0.15f);
-                float newWvz = vtZ * 0.70f - hitNormalAvg.z * (vn * 0.15f);
+                RaycastHit[] hits = Physics.RaycastAll(origin, dir, radius + 0.20f, ~0, QueryTriggerInteraction.Ignore);
+                foreach (var h in hits)
+                {
+                    if (IsBarrierCollider(h.collider, h.normal))
+                    {
+                        if (h.distance < radius)
+                        {
+                            float penetration = radius - h.distance;
+                            Vector3 n = new Vector3(h.normal.x, 0f, h.normal.z);
+                            if (n.sqrMagnitude < 0.01f) n = -dir;
+                            else n.Normalize();
 
-                model.Vx = Mathf.Max(0f, newWvx * sinY + newWvz * cosY);
-                model.Vy = -newWvx * cosY + newWvz * sinY;
+                            if (penetration > maxPenetration)
+                            {
+                                maxPenetration = penetration;
+                            }
+                            pushNormalAvg += n;
+                            hitCount++;
+                        }
+                    }
+                }
             }
         }
 
-        // 2. Physical Barrier Spline Envelope from 3D model
-        float carHalfW = 1.05f;
-        float maxLeft = q.barrierLeft - carHalfW;
-        float maxRight = q.barrierRight - carHalfW;
-
-        float nx = -Mathf.Cos(q.headingRad);
-        float nz = Mathf.Sin(q.headingRad);
-
-        if (q.lateralOffset > maxLeft)
+        if (hitCount > 0 && maxPenetration > 0f)
         {
-            float excess = q.lateralOffset - maxLeft;
-            OnBarrierCollision?.Invoke(Mathf.Abs(model.Vy) + excess * 3f, -new Vector3(nx, 0f, nz));
-            model.X -= nx * (excess + 0.08f);
-            model.Z -= nz * (excess + 0.08f);
+            pushNormalAvg.Normalize();
+            float pushDist = maxPenetration + 0.05f;
+            model.X += pushNormalAvg.x * pushDist;
+            model.Z += pushNormalAvg.z * pushDist;
 
-            model.Vy = -Mathf.Abs(model.Vy) * 0.15f;
-            model.Vx *= 0.70f;
+            ApplyRigidCollisionResponse(pushNormalAvg, sinY, cosY);
         }
-        else if (q.lateralOffset < -maxRight)
-        {
-            float excess = -maxRight - q.lateralOffset;
-            OnBarrierCollision?.Invoke(Mathf.Abs(model.Vy) + excess * 3f, new Vector3(nx, 0f, nz));
-            model.X += nx * (excess + 0.08f);
-            model.Z += nz * (excess + 0.08f);
 
-            model.Vy = Mathf.Abs(model.Vy) * 0.15f;
-            model.Vx *= 0.70f;
+        // 2. Physical Barrier Spline Envelope (Backup Hard Enclosing Boundary)
+        // Only active when the vehicle is genuinely off-track in terrain/runoff and outside the pit corridor
+        if (spline != null && !IsInPitCorridor(model.X, model.Z) && !isCarOverRoadOrKerb)
+        {
+            float carHalfW = 1.05f;
+            float minSafeMargin = q.trackWidth * 0.5f + 1.2f;
+            float maxLeft = Mathf.Max(minSafeMargin, q.barrierLeft - carHalfW);
+            float maxRight = Mathf.Max(minSafeMargin, q.barrierRight - carHalfW);
+
+            float nx = -Mathf.Cos(q.headingRad);
+            float nz = Mathf.Sin(q.headingRad);
+
+            if (q.lateralOffset > maxLeft)
+            {
+                float excess = q.lateralOffset - maxLeft;
+                model.X -= nx * (excess + 0.05f);
+                model.Z -= nz * (excess + 0.05f);
+
+                if (model.Vy > 0f) model.Vy = -model.Vy * 0.15f;
+                model.Vx *= 0.60f;
+                OnBarrierCollision?.Invoke(excess * 5f + Mathf.Abs(model.Vy), -new Vector3(nx, 0f, nz));
+            }
+            else if (q.lateralOffset < -maxRight)
+            {
+                float excess = -maxRight - q.lateralOffset;
+                model.X += nx * (excess + 0.05f);
+                model.Z += nz * (excess + 0.05f);
+
+                if (model.Vy < 0f) model.Vy = -model.Vy * 0.15f;
+                model.Vx *= 0.60f;
+                OnBarrierCollision?.Invoke(excess * 5f + Mathf.Abs(model.Vy), new Vector3(nx, 0f, nz));
+            }
         }
     }
 
@@ -640,31 +792,116 @@ public class CarController : MonoBehaviour
         OnBarrierCollision?.Invoke(mag, norm);
     }
 
-    float GetWheelGroundHeight(float wx, float wz, float fallbackY)
+    float GetWheelGroundHeight(float wx, float wz, float fallbackY, out bool isRoadOrKerb)
     {
+        isRoadOrKerb = false;
         // 1. Raycast down from above the current vehicle position
-        Vector3 rayStart = new Vector3(wx, currPos.y + 2.0f, wz);
-        var hits = Physics.RaycastAll(rayStart, Vector3.down, 5.0f, ~0, QueryTriggerInteraction.Ignore);
-        foreach (var h in hits)
+        float startY = Mathf.Max(currPos.y, fallbackY) + 2.5f;
+        Vector3 rayStart = new Vector3(wx, startY, wz);
+        var hits = Physics.RaycastAll(rayStart, Vector3.down, 6.0f, ~0, QueryTriggerInteraction.Ignore);
+
+        float bestRoadY = float.MinValue;
+        float bestGroundY = float.MinValue;
+        bool foundRoad = false;
+        bool foundGround = false;
+
+        for (int i = 0; i < hits.Length; i++)
         {
-            if (h.transform.root != transform)
+            var h = hits[i];
+            if (h.transform.root == transform) continue;
+
+            string colName = h.collider.gameObject.name;
+            // Reject barriers, walls, fencing, and vertical surfaces
+            if (colName.Contains("Barrier") || colName.Contains("wall") || colName.Contains("armco") ||
+                colName.Contains("fence") || colName.Contains("guard") || colName.Contains("concw"))
             {
-                return h.point.y;
+                continue;
             }
+            if (h.normal.y < 0.35f) continue;
+
+            if (colName.Contains("Road") || colName.Contains("Kerb"))
+            {
+                if (h.point.y > bestRoadY)
+                {
+                    bestRoadY = h.point.y;
+                    foundRoad = true;
+                }
+            }
+            else
+            {
+                if (h.point.y > bestGroundY)
+                {
+                    bestGroundY = h.point.y;
+                    foundGround = true;
+                }
+            }
+        }
+
+        if (foundRoad)
+        {
+            isRoadOrKerb = true;
+            return bestRoadY;
+        }
+        if (foundGround)
+        {
+            return bestGroundY;
         }
 
         // 2. High raycast fallback if car was slightly misaligned
-        Vector3 highRayStart = new Vector3(wx, fallbackY + 5.0f, wz);
-        var highHits = Physics.RaycastAll(highRayStart, Vector3.down, 12.0f, ~0, QueryTriggerInteraction.Ignore);
-        foreach (var h in highHits)
+        Vector3 highRayStart = new Vector3(wx, fallbackY + 8.0f, wz);
+        var highHits = Physics.RaycastAll(highRayStart, Vector3.down, 16.0f, ~0, QueryTriggerInteraction.Ignore);
+        bestRoadY = float.MinValue;
+        bestGroundY = float.MinValue;
+        foundRoad = false;
+        foundGround = false;
+
+        for (int i = 0; i < highHits.Length; i++)
         {
-            if (h.transform.root != transform)
+            var h = highHits[i];
+            if (h.transform.root == transform) continue;
+
+            string colName = h.collider.gameObject.name;
+            if (colName.Contains("Barrier") || colName.Contains("wall") || colName.Contains("armco") ||
+                colName.Contains("fence") || colName.Contains("guard") || colName.Contains("concw"))
             {
-                return h.point.y;
+                continue;
+            }
+            if (h.normal.y < 0.35f) continue;
+
+            if (colName.Contains("Road") || colName.Contains("Kerb"))
+            {
+                if (h.point.y > bestRoadY)
+                {
+                    bestRoadY = h.point.y;
+                    foundRoad = true;
+                }
+            }
+            else
+            {
+                if (h.point.y > bestGroundY)
+                {
+                    bestGroundY = h.point.y;
+                    foundGround = true;
+                }
             }
         }
 
+        if (foundRoad)
+        {
+            isRoadOrKerb = true;
+            return bestRoadY;
+        }
+        if (foundGround)
+        {
+            return bestGroundY;
+        }
+
         return fallbackY;
+    }
+
+    float GetWheelGroundHeight(float wx, float wz, float fallbackY)
+    {
+        return GetWheelGroundHeight(wx, wz, fallbackY, out _);
     }
 
     void Update()
@@ -776,7 +1013,8 @@ public class CarController : MonoBehaviour
                 visChunks++;
         }
         var qCarCurrent = spline != null ? spline.Query(model.X, model.Z) : default;
-        string surfName = qCarCurrent.surface.ToString().ToLowerInvariant();
+        bool inPitHUD = IsInPitCorridor(model.X, model.Z);
+        string surfName = inPitHUD ? "asphalt (pitlane)" : (isCarOverRoadOrKerb ? "asphalt" : qCarCurrent.surface.ToString().ToLowerInvariant());
         string trackStatusLine = $"s={qCarCurrent.s:F0} off={qCarCurrent.lateralOffset:F1} surf={surfName} chunks={visChunks}/{totalTrackChunks}";
         GUI.Label(new Rect(panelX + 4f, panelY + panelH + 18f, panelW + 200f, 16f), trackStatusLine, stampStyle);
 

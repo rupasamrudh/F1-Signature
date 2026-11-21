@@ -43,12 +43,13 @@ namespace F1Sim.Editor.Tests
             suite.T3_TerrainNeverRisesAboveRoadBandTest();
             suite.T4_KerbMeshCoverageTest();
             suite.T5_MaterialsAndShadersTest();
+            suite.T7_BarrierRigidityTest();
 
             CaptureAllScreenshots();
 
             EditorUtility.DisplayDialog(
                 "Track Tests & Screenshots Complete",
-                "All tests T1 - T5 PASSED!\nScreenshots saved in Docs/screenshots/\n- spawn_view.png & spawn_surf_dbg.png\n- t3_view.png & t3_surf_dbg.png\n- t12_view.png & t12_surf_dbg.png\n- pit_straight_view.png & pit_straight_surf_dbg.png",
+                "All tests T1 - T7 PASSED!\nScreenshots saved in Docs/screenshots/\n- spawn_view.png & spawn_surf_dbg.png\n- t3_view.png & t3_surf_dbg.png\n- t12_view.png & t12_surf_dbg.png\n- pit_straight_view.png & pit_straight_surf_dbg.png",
                 "OK"
             );
         }
@@ -294,6 +295,55 @@ namespace F1Sim.Editor.Tests
             }
 
             Debug.Log($"[T5] Checked {checkedCount} track renderers. All materials, shaders, and textures are valid!");
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // T7. Barrier Rigidity & Collider Integrity Test:
+        // Verifies Track_Barriers has active MeshCollider, validates collision hits around track
+        // ─────────────────────────────────────────────────────────────────────────────
+        [Test]
+        public void T7_BarrierRigidityTest()
+        {
+            var trackObj = GameObject.Find("Track_Built");
+            if (trackObj == null) trackObj = GameObject.Find("Track");
+            Assert.IsNotNull(trackObj, "Track root object must exist in scene");
+
+            var barriersObj = trackObj.transform.Find("Track_Barriers");
+            Assert.IsNotNull(barriersObj, "Track_Barriers child object must exist");
+
+            var mc = barriersObj.GetComponent<MeshCollider>();
+            Assert.IsNotNull(mc, "Track_Barriers must have a MeshCollider component");
+            Assert.IsNotNull(mc.sharedMesh, "Track_Barriers MeshCollider must have a sharedMesh");
+            Assert.Greater(mc.sharedMesh.vertexCount, 1000, "Track_Barriers must contain valid barrier geometry");
+
+            var config = TrackDataLoader.LoadTrack();
+            var spline = new TrackSpline(config);
+
+            // Test 10 key track locations: cast outward rays left and right to verify barrier colliders are detected
+            int barrierHits = 0;
+            for (float s = 100f; s < config.total_length_m; s += 400f)
+            {
+                var q = spline.QueryAtS(s);
+                Vector3 origin = new Vector3(q.x, q.y + 0.5f, q.z);
+                Vector3 left = new Vector3(-Mathf.Cos(q.headingRad), 0f, Mathf.Sin(q.headingRad));
+
+                // Raycast left and right up to barrier limits
+                if (Physics.Raycast(origin, left, out RaycastHit hitL, q.barrierLeft + 5f))
+                {
+                    if (hitL.collider.gameObject.name.ToLowerInvariant().Contains("barrier") ||
+                        hitL.collider.gameObject.name.ToLowerInvariant().Contains("trackside"))
+                        barrierHits++;
+                }
+                if (Physics.Raycast(origin, -left, out RaycastHit hitR, q.barrierRight + 5f))
+                {
+                    if (hitR.collider.gameObject.name.ToLowerInvariant().Contains("barrier") ||
+                        hitR.collider.gameObject.name.ToLowerInvariant().Contains("trackside"))
+                        barrierHits++;
+                }
+            }
+
+            Debug.Log($"[T7] Tested lateral rays towards barriers: {barrierHits} solid barrier collider hits confirmed.");
+            Assert.Greater(barrierHits, 5, "At least 5 barrier hits must be detected around the circuit.");
         }
 
         // ─────────────────────────────────────────────────────────────────────────────

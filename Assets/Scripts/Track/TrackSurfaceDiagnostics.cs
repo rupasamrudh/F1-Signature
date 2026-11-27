@@ -220,6 +220,9 @@ namespace F1Sim.Track
 
         void OnGUI()
         {
+            var carCtrl = FindAnyObjectByType<CarController>();
+            if (carCtrl != null && !carCtrl.isDebugActive) return;
+
             float scale = Screen.dpi > 0 ? Screen.dpi / 160f : 1f;
             scale = Mathf.Clamp(scale, 1f, 2.5f);
 

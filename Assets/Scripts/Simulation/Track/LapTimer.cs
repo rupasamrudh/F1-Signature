@@ -14,6 +14,7 @@ namespace F1Sim.Simulation.Track
     public class LapTimer
     {
         public readonly float TrackLength;
+        public readonly float StartFinishS;
         public readonly float Sector1SplitS;
         public readonly float Sector2SplitS;
 
@@ -65,6 +66,7 @@ namespace F1Sim.Simulation.Track
         {
             if (config == null) throw new ArgumentNullException(nameof(config));
             TrackLength = config.total_length_m;
+            StartFinishS = config.start_finish_s;
 
             // Sectors: 0 to S1, S1 to S2, S2 to TrackLength
             if (config.sectors != null && config.sectors.Count >= 2)
@@ -84,7 +86,7 @@ namespace F1Sim.Simulation.Track
             _prevS = -1f;
         }
 
-        public void Reset(float currentS = 0f)
+        public void Reset(float currentS = -1f)
         {
             CurrentLapTime = 0f;
             CurrentS1Time = 0f;
@@ -126,14 +128,23 @@ namespace F1Sim.Simulation.Track
             IsLapValid = false;
         }
 
+        public float GetLapDistance(float currentS)
+        {
+            if (StartFinishS <= 0f) return currentS;
+            float d = currentS - StartFinishS;
+            if (d < 0f) d += TrackLength;
+            return d;
+        }
+
         public float GetLiveDelta(float currentS)
         {
             if (!HasBestLap) return 0f;
-            int idx = (int)(currentS / 10f);
+            float lapDist = GetLapDistance(currentS);
+            int idx = (int)(lapDist / 10f);
             if (idx < 0) idx = 0;
             if (idx >= DeltaSampleCount - 1) idx = DeltaSampleCount - 2;
 
-            float frac = (currentS - idx * 10f) / 10f;
+            float frac = (lapDist - idx * 10f) / 10f;
             float bestTimeAtS = BestLapTimeAtDistance[idx] + frac * (BestLapTimeAtDistance[idx + 1] - BestLapTimeAtDistance[idx]);
             return CurrentLapTime - bestTimeAtS;
         }
@@ -176,7 +187,8 @@ namespace F1Sim.Simulation.Track
                 CurrentLapTime += dt;
 
                 // Record time-at-distance table every 10m
-                int dIdx = (int)(currentS / 10f);
+                float lapDist = GetLapDistance(currentS);
+                int dIdx = (int)(lapDist / 10f);
                 if (dIdx >= 0 && dIdx < DeltaSampleCount && _currentLapTimeAtDistance[dIdx] == 0f)
                 {
                     _currentLapTimeAtDistance[dIdx] = CurrentLapTime;
@@ -285,15 +297,44 @@ namespace F1Sim.Simulation.Track
 
         bool DidCrossStartFinish(float prevS, float currS)
         {
-            // Wrapped from near end (> 0.75 * L) to near start (< 0.25 * L)
-            return prevS > TrackLength * 0.75f && currS < TrackLength * 0.25f;
+            if (StartFinishS <= 0f)
+            {
+                // Wrapped from near end (> 0.75 * L) to near start (< 0.25 * L)
+                return prevS > TrackLength * 0.75f && currS < TrackLength * 0.25f;
+            }
+
+            if (prevS <= currS)
+            {
+                return prevS <= StartFinishS && currS >= StartFinishS && (currS - prevS) < TrackLength * 0.25f;
+            }
+            else
+            {
+                return prevS > TrackLength * 0.75f && currS >= StartFinishS && currS < TrackLength * 0.25f;
+            }
         }
 
         float CalculateStartFinishCrossingFraction(float prevS, float currS)
         {
-            float ds = (TrackLength - prevS) + currS;
-            if (MathF.Abs(ds) < 1e-4f) return 0.5f;
-            return Math.Clamp((TrackLength - prevS) / ds, 0f, 1f);
+            if (StartFinishS <= 0f)
+            {
+                float ds = (TrackLength - prevS) + currS;
+                if (MathF.Abs(ds) < 1e-4f) return 0.5f;
+                return Math.Clamp((TrackLength - prevS) / ds, 0f, 1f);
+            }
+
+            if (prevS <= currS)
+            {
+                float ds = currS - prevS;
+                if (MathF.Abs(ds) < 1e-4f) return 0.5f;
+                return Math.Clamp((StartFinishS - prevS) / ds, 0f, 1f);
+            }
+            else
+            {
+                float ds = (TrackLength - prevS) + currS;
+                if (MathF.Abs(ds) < 1e-4f) return 0.5f;
+                float distToFinish = (TrackLength - prevS) + StartFinishS;
+                return Math.Clamp(distToFinish / ds, 0f, 1f);
+            }
         }
 
         void UpdateS1Status()

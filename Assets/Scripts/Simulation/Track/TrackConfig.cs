@@ -84,6 +84,7 @@ namespace F1Sim.Simulation.Track
         public float scale_m_per_px = 0.703762f;
         public float airDensity = 1.10f;
         public float default_width_m = 14.0f;
+        public float start_finish_s = 0f;
 
         public List<TrackSector> sectors = new List<TrackSector>();
         public List<StraightModeZone> straight_mode_zones = new List<StraightModeZone>();

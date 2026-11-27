@@ -24,6 +24,31 @@ namespace F1Sim.Simulation
         public float LatG;   // g
         public int   AeroMode; // 0=Corner, 1=Straight
         public float PeakBrakeG; // g peak deceleration of last braking event
+
+        // ── Phase 3 Steering & Vehicle Dynamics Telemetry ──────────────────
+        // Input telemetry
+        public float RawTilt;       // deg
+        public float CalibTilt;     // deg (calibrated tilt angle)
+        public float SteerInput;    // [-1, 1] normalized target from input device
+        public float SteerOutput;   // [-1, 1] smoothed steering command
+
+        // Steering telemetry
+        public float SteerAngleReq; // deg (driver requested steer angle)
+        public float SteerAngleFL;  // deg (actual FL wheel angle)
+        public float SteerAngleFR;  // deg (actual FR wheel angle)
+        public float MechLimit;     // deg (speed-dependent mechanical rack limit)
+        public float DeltaAssist;   // deg (stability assist counter-steer angle)
+
+        // Vehicle telemetry
+        public float Beta;          // deg (body sideslip angle)
+
+        // Tyre telemetry
+        public float FyFront;       // N (total front axle lateral force)
+        public float FyRear;        // N (total rear axle lateral force)
+        public float MuFront;       // load-sensitive front friction coeff
+        public float MuRear;        // load-sensitive rear friction coeff (+rear grip mult)
+        public float SatFront;      // [0, 1] front tyre saturation ratio
+        public float SatRear;       // [0, 1] rear tyre saturation ratio
     }
 
     public class Telemetry
@@ -55,45 +80,65 @@ namespace F1Sim.Simulation
         public void Clear() => _frames.Clear();
 
         /// Call this every FixedUpdate / simulation step.
-        public void Record(float time, VehicleDynamics v, float throttle, float brake)
+        public void Record(float time, VehicleDynamics v, float throttle, float brake,
+                           float rawTilt = 0f, float calibTilt = 0f, float steerInput = 0f, float steerOutput = 0f)
         {
             if (!IsRecording) return;
-            if (time - _lastRecordTime < _interval) return;
+            if (time - _lastRecordTime < _interval * 0.95f) return;
             if (_frames.Count >= _maxFrames) return;
 
             _lastRecordTime = time;
             const float g = 9.81f;
             _frames.Add(new TelemetryFrame
             {
-                Time        = time,
-                Speed       = v.TotalSpeedKmh,
-                Vx          = v.Vx,
-                Vy          = v.Vy,
-                YawRate     = v.R,
-                SteerAngle  = v.FinalSteerAngleDeg,
-                Throttle    = throttle,
-                Brake       = brake,
-                Gear        = v.Gear,
-                Rpm         = v.EngineRpm,
-                FzFL        = v.FzFL,
-                FzFR        = v.FzFR,
-                FzRL        = v.FzRL,
-                FzRR        = v.FzRR,
-                AlphaFL     = v.Wheels[0].alphaLag,
-                AlphaFR     = v.Wheels[1].alphaLag,
-                AlphaRL     = v.Wheels[2].alphaLag,
-                AlphaRR     = v.Wheels[3].alphaLag,
-                LongG       = v.Ax / g,
-                LatG        = v.LatG,
-                AeroMode    = (int)v.Aero.CurrentMode,
-                PeakBrakeG  = v.lastBrakingPeakDecelG,
+                Time          = time,
+                Speed         = v.TotalSpeedKmh,
+                Vx            = v.Vx,
+                Vy            = v.Vy,
+                YawRate       = v.R,
+                SteerAngle    = v.FinalSteerAngleDeg,
+                Throttle      = throttle,
+                Brake         = brake,
+                Gear          = v.Gear,
+                Rpm           = v.EngineRpm,
+                FzFL          = v.FzFL,
+                FzFR          = v.FzFR,
+                FzRL          = v.FzRL,
+                FzRR          = v.FzRR,
+                AlphaFL       = v.Wheels[0].alphaLag,
+                AlphaFR       = v.Wheels[1].alphaLag,
+                AlphaRL       = v.Wheels[2].alphaLag,
+                AlphaRR       = v.Wheels[3].alphaLag,
+                LongG         = v.Ax / g,
+                LatG          = v.LatG,
+                AeroMode      = (int)v.Aero.CurrentMode,
+                PeakBrakeG    = v.lastBrakingPeakDecelG,
+                RawTilt       = rawTilt,
+                CalibTilt     = calibTilt,
+                SteerInput    = steerInput,
+                SteerOutput   = steerOutput,
+                SteerAngleReq = v.DriverSteerAngleDeg,
+                SteerAngleFL  = v.SteerAngleFLDeg,
+                SteerAngleFR  = v.SteerAngleFRDeg,
+                MechLimit     = v.MechanicalSteerLimitDeg,
+                DeltaAssist   = v.DeltaAssistDeg,
+                Beta          = v.BetaDeg,
+                FyFront       = v.FyFrontTotal,
+                FyRear        = v.FyRearTotal,
+                MuFront       = v.MuFront,
+                MuRear        = v.MuRear,
+                SatFront      = v.FrontTireSat,
+                SatRear       = v.RearTireSat,
             });
         }
 
         static readonly string Header =
             "time,speed_kmh,vx,vy,yaw_rate,steer_deg,throttle,brake,gear,rpm," +
             "fz_fl,fz_fr,fz_rl,fz_rr,alpha_fl,alpha_fr,alpha_rl,alpha_rr," +
-            "long_g,lat_g,aero_mode,peak_brake_g";
+            "long_g,lat_g,aero_mode,peak_brake_g," +
+            "raw_tilt,calib_tilt,steer_input,steer_output," +
+            "steer_req_deg,steer_fl_deg,steer_fr_deg,mech_limit_deg,assist_deg," +
+            "beta_deg,fy_front_n,fy_rear_n,mu_front,mu_rear,sat_front,sat_rear";
 
         public string ToCsv(CarParams p = null)
         {
@@ -139,7 +184,23 @@ namespace F1Sim.Simulation
                 sb.Append(f.LongG.ToString("F3")); sb.Append(',');
                 sb.Append(f.LatG.ToString("F3")); sb.Append(',');
                 sb.Append(f.AeroMode.ToString()); sb.Append(',');
-                sb.AppendLine(f.PeakBrakeG.ToString("F2"));
+                sb.Append(f.PeakBrakeG.ToString("F2")); sb.Append(',');
+                sb.Append(f.RawTilt.ToString("F1")); sb.Append(',');
+                sb.Append(f.CalibTilt.ToString("F1")); sb.Append(',');
+                sb.Append(f.SteerInput.ToString("F3")); sb.Append(',');
+                sb.Append(f.SteerOutput.ToString("F3")); sb.Append(',');
+                sb.Append(f.SteerAngleReq.ToString("F2")); sb.Append(',');
+                sb.Append(f.SteerAngleFL.ToString("F2")); sb.Append(',');
+                sb.Append(f.SteerAngleFR.ToString("F2")); sb.Append(',');
+                sb.Append(f.MechLimit.ToString("F2")); sb.Append(',');
+                sb.Append(f.DeltaAssist.ToString("F3")); sb.Append(',');
+                sb.Append(f.Beta.ToString("F2")); sb.Append(',');
+                sb.Append(f.FyFront.ToString("F0")); sb.Append(',');
+                sb.Append(f.FyRear.ToString("F0")); sb.Append(',');
+                sb.Append(f.MuFront.ToString("F3")); sb.Append(',');
+                sb.Append(f.MuRear.ToString("F3")); sb.Append(',');
+                sb.Append(f.SatFront.ToString("F3")); sb.Append(',');
+                sb.AppendLine(f.SatRear.ToString("F3"));
             }
             return sb.ToString();
         }

@@ -6,7 +6,7 @@ public class CarInput : MonoBehaviour
     public float Steer, Throttle, Brake; // Steer: +1 = right
 
     [Header("Version")]
-    public const int CURRENT_INPUT_VERSION = 15;
+    public const int CURRENT_INPUT_VERSION = 17;
     public int inputParamsVersion;
 
     public enum ControlMode { Tilt, Touch }
@@ -16,18 +16,18 @@ public class CarInput : MonoBehaviour
 
     [Header("Tilt & Steering Configuration")]
     public bool useTilt = true;
-    public float maxTiltDeg = 90.0f;       // Physical device roll for full lock (90 deg full phone tilt)
-    public float deadzoneDeg = 4.5f;       // Stable deadzone preventing accidental drift (4.5 deg)
-    public float steerSmoothing = 14.0f;   // Responsive yet smooth interpolation rate (s^-1)
-    public float tiltFilter = 20.0f;       // Accelerometer low-pass filter rate (s^-1)
+    public float maxTiltDeg = 90.0f;       // Physical device roll for full lock (stable baseline: 90 deg full phone tilt)
+    public float deadzoneDeg = 4.5f;       // Stable deadzone preventing resting sensor noise/drift (4.5 deg baseline)
+    public float steerSmoothing = 20.0f;   // Direct yet smooth steering rack interpolation rate (s^-1)
+    public float tiltFilter = 22.0f;       // Accelerometer low-pass filter rate (s^-1)
     public float minPlaneG = 0.08f;
-    public float steerExpo = 1.40f;        // Progressive curve: steer is at most 90 deg even at full tilt
+    public float steerExpo = 1.40f;        // Progressive response curve: gentle near center, full lock reachable
     public bool invertTilt = false;
     public float calibrationDelay = 3f;
 
     [Header("Sensitivity Slider (0 to 10)")]
     [Range(0, 10)]
-    public float sensitivitySlider = 2.0f; // Level 2 default (90 deg full tilt = at most 90 deg steer)
+    public float sensitivitySlider = 2.0f; // Level 2 default (stable baseline: 90 deg max tilt)
 
     [Header("Speed-Sensitive Steering Lock Curve")]
     public bool useSpeedSensitiveLock = false;   // Disabled in input layer: VehicleDynamics handles grip limits directly
@@ -47,11 +47,13 @@ public class CarInput : MonoBehaviour
     bool isTouchSteeringRight = false;
 
     [Header("Pedals")]
-    public bool showZones = false;
-    [Range(0.08f, 0.40f)] public float pedalWidthRatio = 0.18f;
-    [Range(0.15f, 0.60f)] public float pedalHeightRatio = 0.35f;
-    [Range(0.01f, 0.08f)] public float pedalOpacity = 0.04f;
-    [Range(0.02f, 0.15f)] public float pedalActiveOpacity = 0.08f;
+    public bool showZones = true;
+    [Range(0.08f, 0.40f)] public float pedalWidthRatio = 0.22f;
+    [Range(0.15f, 0.60f)] public float pedalHeightRatio = 0.40f;
+    [Range(0.05f, 0.35f)] public float brakeWidthRatio = 0.15f;
+    [Range(0.10f, 0.50f)] public float brakeHeightRatio = 0.30f;
+    [Range(0.01f, 0.50f)] public float pedalOpacity = 0.22f;
+    [Range(0.02f, 0.80f)] public float pedalActiveOpacity = 0.55f;
 
     // State
     Vector3 lastAcc;
@@ -63,15 +65,29 @@ public class CarInput : MonoBehaviour
     float autoCenterTimer;
     Rect brakeZone, throttleZone;
 
+    // Phase 3 Telemetry Exposures
+    public float RawRollDeg => rollDeg;
+    public float OffsetDeg => offsetDeg;
+    public float RelDeg => relDeg;
+    public float SteerTarget => steerTarget;
+    public bool  IsCalibrated => calibrated;
+
     // Button Rects and hit detection state
     private Rect rectMode;
     private Rect rectCalibrate;
     private Rect rectSensMinus;
+    private Rect rectSensLabel;
     private Rect rectSensPlus;
     private Rect rectInvert;
     private Rect rectZones;
     private float _calibFeedbackTimer = 0f;
     private int _lastButtonActionFrame = -1;
+
+    // Driving Controls: Pit Limiter & DRS Buttons
+    public Rect pitLimiterZone;
+    public Rect drsZone;
+    public Rect pitLimiterGuiRect;
+    public Rect drsGuiRect;
 
     // Reference to CarController for auto-center conditions
     CarController ctrl;
@@ -82,7 +98,7 @@ public class CarInput : MonoBehaviour
         controlMode = (ControlMode)PlayerPrefs.GetInt("F1Sig_ControlMode", (int)ControlMode.Tilt);
         useTilt = (controlMode == ControlMode.Tilt);
         invertTilt = PlayerPrefs.GetInt("F1Sig_InvertTilt", 0) == 1;
-        showZones = PlayerPrefs.GetInt("F1Sig_ShowZones", 0) == 1;
+        showZones = PlayerPrefs.GetInt("F1Sig_ShowZones", 1) == 1;
         sensitivitySlider = PlayerPrefs.GetFloat("F1Sig_SteerSensSlider", 2.0f);
         UpdateMaxTiltFromSlider();
 
@@ -99,11 +115,13 @@ public class CarInput : MonoBehaviour
 
         if (inputParamsVersion != CURRENT_INPUT_VERSION)
         {
-            Debug.LogWarning($"[CarInput] Config version mismatch (found v{inputParamsVersion}, current v{CURRENT_INPUT_VERSION}). Applying at-most-90-deg steer configuration:\n" +
+            Debug.LogWarning($"[CarInput] Config version mismatch (found v{inputParamsVersion}, current v{CURRENT_INPUT_VERSION}). Restoring stable baseline configuration:\n" +
                              $"  controlMode: TILT\n" +
-                             $"  maxTiltDeg: 90.0 (full phone tilt = at most 90 deg steer)\n" +
+                             $"  maxTiltDeg: 90.0 (slider level 2 baseline, range 95-65 deg)\n" +
                              $"  deadzoneDeg: 4.5\n" +
                              $"  steerExpo: 1.40\n" +
+                             $"  steerSmoothing: 20.0\n" +
+                             $"  tiltFilter: 22.0\n" +
                              $"  invertTilt: False");
 
             sensitivitySlider = 2.0f;
@@ -115,9 +133,10 @@ public class CarInput : MonoBehaviour
             PlayerPrefs.SetInt("F1Sig_InvertTilt", 0);
             PlayerPrefs.Save();
 
+            deadzoneDeg = 4.5f;
             UpdateMaxTiltFromSlider();
-            steerSmoothing = 14.0f;
-            tiltFilter = 20.0f;
+            steerSmoothing = 20.0f;
+            tiltFilter = 22.0f;
             useSpeedSensitiveLock = false;
             speedLockMinMultiplier = 1.0f;
             speedLockMaxKmh = 320f;
@@ -137,17 +156,17 @@ public class CarInput : MonoBehaviour
     }
 
     /// <summary>
-    /// Remaps 0-10 slider:
-    /// Level 0 -> 95 deg (5.0 deg deadzone, calmest)
-    /// Level 2 -> 90 deg (4.5 deg deadzone, full phone tilt = at most 90 deg steer)
-    /// Level 5 -> 80 deg (4.0 deg deadzone)
-    /// Level 10 -> 65 deg (3.0 deg deadzone)
+    /// Remaps 0-10 slider to maxTiltDeg:
+    /// Level 0  -> 95 deg (calmest)
+    /// Level 2  -> 90 deg (stable baseline default)
+    /// Level 5  -> 80 deg
+    /// Level 10 -> 65 deg (most sensitive)
+    /// Note: deadzoneDeg remains independent at 4.5 deg so sensitivity adjustments do not alter deadzone.
     /// </summary>
     public void UpdateMaxTiltFromSlider()
     {
         float t = Mathf.Clamp01(sensitivitySlider / 10f);
         maxTiltDeg = Mathf.Lerp(95f, 65f, t);
-        deadzoneDeg = Mathf.Lerp(5.0f, 3.0f, t);
     }
 
     void OnEnable()
@@ -253,23 +272,31 @@ public class CarInput : MonoBehaviour
 
         if (controlMode == ControlMode.Tilt)
         {
-            float totalW = 428f;
-            float startX = centerBtnX - totalW * 0.5f;
-            rectMode      = new Rect(startX, btnY, 95f, btnH);
-            rectCalibrate = new Rect(startX + 101f, btnY, 90f, btnH);
-            rectSensMinus = new Rect(startX + 197f, btnY, 75f, btnH);
-            rectSensPlus  = new Rect(startX + 278f, btnY, 75f, btnH);
-            rectInvert    = new Rect(startX + 359f, btnY, 70f, btnH);
+            float wMode = 96f, wCalib = 96f, wMinus = 36f, wSensLbl = 68f, wPlus = 36f, wInv = 78f;
+            float gap = 6f;
+            float totalW = wMode + gap + wCalib + gap + wMinus + 3f + wSensLbl + 3f + wPlus + gap + wInv;
+            float curX = centerBtnX - totalW * 0.5f;
+
+            rectMode      = new Rect(curX, btnY, wMode, btnH); curX += wMode + gap;
+            rectCalibrate = new Rect(curX, btnY, wCalib, btnH); curX += wCalib + gap;
+            rectSensMinus = new Rect(curX, btnY, wMinus, btnH); curX += wMinus + 3f;
+            rectSensLabel = new Rect(curX, btnY, wSensLbl, btnH); curX += wSensLbl + 3f;
+            rectSensPlus  = new Rect(curX, btnY, wPlus, btnH); curX += wPlus + gap;
+            rectInvert    = new Rect(curX, btnY, wInv, btnH);
             rectZones     = Rect.zero;
         }
         else // Touch Mode
         {
-            float totalW = 358f;
-            float startX = centerBtnX - totalW * 0.5f;
-            rectMode      = new Rect(startX, btnY, 100f, btnH);
-            rectZones     = new Rect(startX + 106f, btnY, 90f, btnH);
-            rectSensMinus = new Rect(startX + 202f, btnY, 75f, btnH);
-            rectSensPlus  = new Rect(startX + 283f, btnY, 75f, btnH);
+            float wMode = 106f, wZones = 96f, wMinus = 36f, wSensLbl = 68f, wPlus = 36f;
+            float gap = 6f;
+            float totalW = wMode + gap + wZones + gap + wMinus + 3f + wSensLbl + 3f + wPlus;
+            float curX = centerBtnX - totalW * 0.5f;
+
+            rectMode      = new Rect(curX, btnY, wMode, btnH); curX += wMode + gap;
+            rectZones     = new Rect(curX, btnY, wZones, btnH); curX += wZones + gap;
+            rectSensMinus = new Rect(curX, btnY, wMinus, btnH); curX += wMinus + 3f;
+            rectSensLabel = new Rect(curX, btnY, wSensLbl, btnH); curX += wSensLbl + 3f;
+            rectSensPlus  = new Rect(curX, btnY, wPlus, btnH);
             rectCalibrate = Rect.zero;
             rectInvert    = Rect.zero;
         }
@@ -280,6 +307,14 @@ public class CarInput : MonoBehaviour
         if (r.width <= 0f || r.height <= 0f) return false;
         return p.x >= r.xMin - margin && p.x <= r.xMax + margin &&
                p.y >= r.yMin - margin && p.y <= r.yMax + margin;
+    }
+
+    private static bool HitTestCircle(Rect r, Vector2 p, float margin = 4f)
+    {
+        if (r.width <= 0f || r.height <= 0f) return false;
+        Vector2 center = r.center;
+        float radius = r.width * 0.5f + margin;
+        return (p - center).sqrMagnitude <= radius * radius;
     }
 
     private void CheckButtonPress(Vector2 guiPos)
@@ -303,6 +338,15 @@ public class CarInput : MonoBehaviour
             else if (HitTest(rectSensMinus, guiPos)) OnSensMinusPressed();
             else if (HitTest(rectSensPlus, guiPos)) OnSensPlusPressed();
         }
+
+        if (HitTestCircle(pitLimiterGuiRect, guiPos) && ctrl != null)
+        {
+            ctrl.TogglePitLimiter();
+        }
+        else if (HitTestCircle(drsGuiRect, guiPos) && ctrl != null)
+        {
+            ctrl.ToggleAero();
+        }
     }
 
     public void ResetInput()
@@ -321,10 +365,28 @@ public class CarInput : MonoBehaviour
     void Update()
     {
         float W = Screen.width, H = Screen.height;
-        float pW = W * pedalWidthRatio;
-        float pH = H * pedalHeightRatio;
-        brakeZone    = new Rect(W * 0.03f, 0f, pW, pH);
-        throttleZone = new Rect(W * (1.0f - 0.03f - pedalWidthRatio), 0f, pW, pH);
+        float thrW = W * pedalWidthRatio;
+        float thrH = H * pedalHeightRatio;
+        float brkW = W * brakeWidthRatio;
+        float brkH = H * brakeHeightRatio;
+
+        // Brake on left side (smaller), Throttle on right side (larger)
+        brakeZone    = new Rect(W * 0.03f, 0f, brkW, brkH);
+        throttleZone = new Rect(W * (1.0f - 0.03f - pedalWidthRatio), 0f, thrW, thrH);
+
+        // Circular Tactical Buttons on the Left Side (directly above Brake pedal)
+        // Enlarged button size for easy thumb targeting during mobile gameplay
+        float btnD = Mathf.Clamp(H * 0.17f, 75f, 105f);
+        float btnGap = 16f;
+        float clusterW = btnD * 2f + btnGap;
+        float startX = brakeZone.x + Mathf.Max(0f, (brkW - clusterW) * 0.5f);
+
+        // Both circular buttons on left side (screen coords: y=0 is bottom):
+        pitLimiterZone = new Rect(startX, brkH + 12f, btnD, btnD);
+        drsZone        = new Rect(startX + btnD + btnGap, brkH + 12f, btnD, btnD);
+
+        pitLimiterGuiRect = ToGui(pitLimiterZone);
+        drsGuiRect        = ToGui(drsZone);
 
         float dt = Time.deltaTime;
         if (_calibFeedbackTimer > 0f)
@@ -338,6 +400,9 @@ public class CarInput : MonoBehaviour
         isTouchSteeringRight = false;
 
         // Process Touchscreen touches
+        // FULL MULTI-TOUCH SUPPORT:
+        // Every active touch is evaluated simultaneously. A player can hold throttle with one finger
+        // while tapping/holding DRS, Pit Limiter, Brake, or Steering with other fingers without conflict.
         var ts = Touchscreen.current;
         if (ts != null)
         {
@@ -347,7 +412,7 @@ public class CarInput : MonoBehaviour
                 Vector2 p = touch.position.ReadValue();
                 Vector2 guiPos = new Vector2(p.x, H - p.y);
 
-                // If touch is in the top toolbar area, process button taps and DO NOT treat as steering/pedals
+                // Top toolbar area: button taps only, never steering/pedals
                 if (guiPos.y <= 170f)
                 {
                     if (touch.press.wasPressedThisFrame)
@@ -357,23 +422,39 @@ public class CarInput : MonoBehaviour
                     continue;
                 }
 
-                if (throttleZone.Contains(p))
+                // Circular Pit Limiter and DRS buttons:
+                // Evaluated per-touch so pressing either button does NOT cancel active throttle or brake touches
+                if (HitTestCircle(pitLimiterZone, p))
                 {
-                    thrTarget = 1f;
+                    if (touch.press.wasPressedThisFrame && ctrl != null)
+                        ctrl.TogglePitLimiter();
+                    continue;
                 }
-                else if (brakeZone.Contains(p))
+                if (HitTestCircle(drsZone, p))
                 {
-                    brkTarget = 1f;
+                    if (touch.press.wasPressedThisFrame && ctrl != null)
+                        ctrl.ToggleAero();
+                    continue;
                 }
-                else if (controlMode == ControlMode.Touch)
+
+                // Pedal detection (multi-touch independent — throttle and brake can be held simultaneously)
+                bool inThrottle = throttleZone.Contains(p);
+                bool inBrake    = brakeZone.Contains(p);
+
+                if (inThrottle) thrTarget = 1f;
+                if (inBrake)    brkTarget = 1f;
+
+                // Touch steering: any touch NOT on a pedal zone or tactical button counts as a steer touch
+                if (controlMode == ControlMode.Touch && !inThrottle && !inBrake)
                 {
-                    if (p.x < W * 0.5f) isTouchSteeringLeft = true;
-                    else isTouchSteeringRight = true;
+                    if (p.x < W * 0.5f) isTouchSteeringLeft  = true;
+                    else                 isTouchSteeringRight = true;
                 }
             }
         }
 
         // Process Mouse input (allows testing inside Unity Editor and Desktop builds)
+        // Same fix applied: pedal and steering are independent, not mutually exclusive
         var mouse = Mouse.current;
         if (mouse != null)
         {
@@ -385,20 +466,28 @@ public class CarInput : MonoBehaviour
                 CheckButtonPress(guiPos);
             }
 
+            if (mouse.leftButton.wasPressedThisFrame && guiPos.y > 170f)
+            {
+                if (HitTestCircle(pitLimiterZone, mp) && ctrl != null)
+                    ctrl.TogglePitLimiter();
+                else if (HitTestCircle(drsZone, mp) && ctrl != null)
+                    ctrl.ToggleAero();
+            }
+
             if (mouse.leftButton.isPressed && guiPos.y > 170f)
             {
-                if (throttleZone.Contains(mp))
+                if (!HitTestCircle(pitLimiterZone, mp) && !HitTestCircle(drsZone, mp))
                 {
-                    thrTarget = 1f;
-                }
-                else if (brakeZone.Contains(mp))
-                {
-                    brkTarget = 1f;
-                }
-                else if (controlMode == ControlMode.Touch)
-                {
-                    if (mp.x < W * 0.5f) isTouchSteeringLeft = true;
-                    else isTouchSteeringRight = true;
+                    bool inThrottleMouse = throttleZone.Contains(mp);
+                    bool inBrakeMouse    = brakeZone.Contains(mp);
+                    if (inThrottleMouse) thrTarget = 1f;
+                    if (inBrakeMouse)    brkTarget = 1f;
+
+                    if (controlMode == ControlMode.Touch && !inThrottleMouse && !inBrakeMouse)
+                    {
+                        if (mp.x < W * 0.5f) isTouchSteeringLeft = true;
+                        else isTouchSteeringRight = true;
+                    }
                 }
             }
         }
@@ -542,35 +631,43 @@ public class CarInput : MonoBehaviour
         float sh = Screen.height;
         UpdateButtonRects(sw, sh);
 
+        // ── Top-Center Modern Toolbar (under Minimap) ─────────────────────
         // 1. Control Mode Toggle [Tilt] / [Touch]
-        string modeLabel = controlMode == ControlMode.Tilt ? "Mode: TILT" : "Mode: TOUCH";
-        if (GUI.Button(rectMode, modeLabel))
+        string modeLabel = controlMode == ControlMode.Tilt ? "MODE: TILT" : "MODE: TOUCH";
+        DrawModernButton(rectMode, modeLabel, new Color(0.35f, 0.75f, 1f), false);
+        if (GUI.Button(rectMode, GUIContent.none, GUIStyle.none))
         {
             ToggleControlMode();
         }
 
-        // 2. Mode-specific top buttons
+        // 2. Mode-specific buttons
         if (controlMode == ControlMode.Tilt)
         {
-            // Calibrate button with visual confirmation
-            string calibLabel = _calibFeedbackTimer > 0f ? "✓ CALIBRATED" : "Calibrate";
-            if (GUI.Button(rectCalibrate, calibLabel))
+            // Calibrate button
+            string calibLabel = _calibFeedbackTimer > 0f ? "✓ CALIBRATED" : "CALIBRATE";
+            Color calibCol = _calibFeedbackTimer > 0f ? new Color(0.2f, 1f, 0.4f) : new Color(0.75f, 0.82f, 0.95f);
+            DrawModernButton(rectCalibrate, calibLabel, calibCol, _calibFeedbackTimer > 0f);
+            if (GUI.Button(rectCalibrate, GUIContent.none, GUIStyle.none))
             {
                 OnCalibratePressed();
             }
 
-            // Sensitivity buttons [Sens -] and [Sens +]
-            if (GUI.Button(rectSensMinus, $"Sens - ({sensitivitySlider:0})"))
+            // Sensitivity [-] SENS X [+]
+            DrawModernButton(rectSensMinus, "—", new Color(0.7f, 0.75f, 0.85f), false);
+            if (GUI.Button(rectSensMinus, GUIContent.none, GUIStyle.none))
             {
                 OnSensMinusPressed();
             }
-            if (GUI.Button(rectSensPlus, $"Sens + ({sensitivitySlider:0})"))
+            DrawModernButton(rectSensLabel, $"SENS {sensitivitySlider:0}", new Color(0.4f, 0.8f, 1f), false);
+            DrawModernButton(rectSensPlus, "+", new Color(0.7f, 0.75f, 0.85f), false);
+            if (GUI.Button(rectSensPlus, GUIContent.none, GUIStyle.none))
             {
                 OnSensPlusPressed();
             }
 
             // Invert tilt toggle
-            if (GUI.Button(rectInvert, invertTilt ? "Inv: ON" : "Inv: OFF"))
+            DrawModernButton(rectInvert, invertTilt ? "INV: ON" : "INV: OFF", invertTilt ? new Color(1f, 0.6f, 0.2f) : new Color(0.6f, 0.65f, 0.75f), invertTilt);
+            if (GUI.Button(rectInvert, GUIContent.none, GUIStyle.none))
             {
                 ToggleInvertTilt();
             }
@@ -578,39 +675,77 @@ public class CarInput : MonoBehaviour
         else // Touch Mode
         {
             // Zones toggle button
-            if (GUI.Button(rectZones, "Zones " + (showZones ? "ON" : "OFF")))
+            DrawModernButton(rectZones, showZones ? "ZONES: ON" : "ZONES: OFF", showZones ? new Color(0.2f, 1f, 0.4f) : new Color(0.6f, 0.65f, 0.75f), showZones);
+            if (GUI.Button(rectZones, GUIContent.none, GUIStyle.none))
             {
                 ToggleShowZones();
             }
 
-            // Sensitivity for touch
-            if (GUI.Button(rectSensMinus, $"Sens - ({sensitivitySlider:0})"))
+            // Sensitivity [-] SENS X [+]
+            DrawModernButton(rectSensMinus, "—", new Color(0.7f, 0.75f, 0.85f), false);
+            if (GUI.Button(rectSensMinus, GUIContent.none, GUIStyle.none))
             {
                 OnSensMinusPressed();
             }
-            if (GUI.Button(rectSensPlus, $"Sens + ({sensitivitySlider:0})"))
+            DrawModernButton(rectSensLabel, $"SENS {sensitivitySlider:0}", new Color(0.4f, 0.8f, 1f), false);
+            DrawModernButton(rectSensPlus, "+", new Color(0.7f, 0.75f, 0.85f), false);
+            if (GUI.Button(rectSensPlus, GUIContent.none, GUIStyle.none))
             {
                 OnSensPlusPressed();
             }
         }
 
-        // Steer HUD status readout (cleanly placed below telemetry and track info at Y = 205)
-        float hudY = 205f;
-        if (controlMode == ControlMode.Tilt)
+        // Steer HUD status readout (Cleanly shown only when Debug is ON)
+        if (ctrl != null && ctrl.isDebugActive)
         {
-            string stateText = isTiltValid ? "VALID" : "TILT INVALID";
-            string calibText = calibrated ? "" : $"  HOLD LEVEL... {Mathf.Max(0f, calibrateAt - Time.time):0.0}s";
-            float steerWheelDeg = Steer * 90f; // F1 steering wheel angle (-90 to +90 deg max)
-            GUI.Label(new Rect(8f, hudY, 560f, 50f),
-                $"acc x {lastAcc.x:0.00} y {lastAcc.y:0.00} z {lastAcc.z:0.00}  plane {gravXY.magnitude:0.00} [{stateText}]\n" +
-                $"roll {rollDeg:0.0}°  relDeg {relDeg:0.0}°  MaxTilt {maxTiltDeg:0.0}°  SteerWheel {steerWheelDeg:0.0}° (Cmd {Steer:0.00}){calibText}");
+            float hudY = 205f;
+            if (controlMode == ControlMode.Tilt)
+            {
+                string stateText = isTiltValid ? "VALID" : "TILT INVALID";
+                string calibText = calibrated ? "" : $"  HOLD LEVEL... {Mathf.Max(0f, calibrateAt - Time.time):0.0}s";
+                float rawRoll = Mathf.Atan2(lastAcc.x, lastAcc.y) * Mathf.Rad2Deg;
+                float steerWheelDeg = Steer * 90f; // F1 steering wheel angle (-90 to +90 deg max)
+                GUI.Label(new Rect(8f, hudY, 620f, 65f),
+                    $"[TILT DIAG] RawRoll: {rawRoll:+0.0;-0.0}° | FilteredRoll: {rollDeg:+0.0;-0.0}° | CalibRelTilt: {relDeg:+0.0;-0.0}° (Deadzone: {deadzoneDeg:0.0}°)\n" +
+                    $"NormTarget: {steerTarget:+0.000;-0.000} | FinalSteer: {Steer:+0.000;-0.000} (Wheel: {steerWheelDeg:+0.0;-0.0}°) | MaxTilt: {maxTiltDeg:0.0}° [{stateText}]{calibText}\n" +
+                    $"AccRaw: ({lastAcc.x:+0.00;-0.00}, {lastAcc.y:+0.00;-0.00}, {lastAcc.z:+0.00;-0.00}) | GravXY: {gravXY.magnitude:0.00}g | SensSlider: {sensitivitySlider:0}");
+            }
+            else
+            {
+                string touchState = isTouchSteeringLeft ? "◄ TURNING LEFT" : (isTouchSteeringRight ? "TURNING RIGHT ►" : "CENTERED");
+                GUI.Label(new Rect(8f, hudY, 560f, 50f),
+                    $"TOUCH STEER [RR3 Touch A] — State: {touchState}\n" +
+                    $"SteerCmd: {Steer:0.00}  Target: {touchSteerCurrent:0.00}  Sens: {sensitivitySlider:0}");
+            }
         }
-        else
+
+        // ── Tactical Circular Buttons on Left Side (Pit Limiter & DRS) ───
+        bool isPitActive = ctrl != null && ctrl.isPitLimiterActive;
+        Color pitColor = new Color(1f, 0.78f, 0.1f);
+        string pitSub = isPitActive ? "<color=#FFEE55>80 ON</color>" : "80";
+        DrawModernCircleButton(pitLimiterGuiRect, "PIT", pitColor, isPitActive, pitSub);
+        if (GUI.Button(pitLimiterGuiRect, GUIContent.none, GUIStyle.none))
         {
-            string touchState = isTouchSteeringLeft ? "◄ TURNING LEFT" : (isTouchSteeringRight ? "TURNING RIGHT ►" : "CENTERED");
-            GUI.Label(new Rect(8f, hudY, 560f, 50f),
-                $"TOUCH STEER [RR3 Touch A] — State: {touchState}\n" +
-                $"SteerCmd: {Steer:0.00}  Target: {touchSteerCurrent:0.00}  Sens: {sensitivitySlider:0}");
+            // Fallback for mouse / desktop GUI button clicks if not already toggled this frame
+            if (_lastButtonActionFrame != Time.frameCount && ctrl != null)
+            {
+                _lastButtonActionFrame = Time.frameCount;
+                ctrl.TogglePitLimiter();
+            }
+        }
+
+        bool isDrsActive = ctrl != null && ctrl.IsDrsActive;
+        Color drsColor = new Color(0.0f, 0.95f, 0.45f);
+        string drsSub = isDrsActive ? "<color=#55FF88>OPEN</color>" : "AERO";
+        DrawModernCircleButton(drsGuiRect, "DRS", drsColor, isDrsActive, drsSub);
+        if (GUI.Button(drsGuiRect, GUIContent.none, GUIStyle.none))
+        {
+            // Fallback for mouse / desktop GUI button clicks if not already toggled this frame
+            if (_lastButtonActionFrame != Time.frameCount && ctrl != null)
+            {
+                _lastButtonActionFrame = Time.frameCount;
+                ctrl.ToggleAero();
+            }
         }
 
         if (showZones)
@@ -623,8 +758,8 @@ public class CarInput : MonoBehaviour
                 _zonePixel.Apply();
             }
 
-            DrawTouchZone(ToGui(brakeZone), Brake > 0.05f, "BRAKE", new Color(1f, 0.35f, 0.35f));
-            DrawTouchZone(ToGui(throttleZone), Throttle > 0.05f, "THROTTLE", new Color(0.35f, 1f, 0.45f));
+            DrawTouchZone(ToGui(brakeZone), Brake > 0.05f, "BRAKE", new Color(1f, 0.28f, 0.28f));
+            DrawTouchZone(ToGui(throttleZone), Throttle > 0.05f, "THROTTLE", new Color(0.2f, 0.95f, 0.35f));
 
             if (controlMode == ControlMode.Touch)
             {
@@ -638,33 +773,207 @@ public class CarInput : MonoBehaviour
         }
     }
 
-    static Texture2D _zonePixel;
-    void DrawTouchZone(Rect r, bool active, string label, Color accent)
+    public static void DrawModernButton(Rect r, string label, Color accent, bool active, string subLabel = null)
     {
-        float fillAlpha = active ? pedalActiveOpacity : pedalOpacity;
-        // Faint fill
-        GUI.color = new Color(accent.r, accent.g, accent.b, fillAlpha);
+        if (r.width <= 0f || r.height <= 0f) return;
+
+        if (_zonePixel == null)
+        {
+            _zonePixel = new Texture2D(1, 1);
+            _zonePixel.SetPixel(0, 0, Color.white);
+            _zonePixel.Apply();
+        }
+
+        // Translucent dark glass background
+        Color bgColor = active
+            ? new Color(accent.r * 0.38f, accent.g * 0.38f, accent.b * 0.38f, 0.88f)
+            : new Color(0.06f, 0.08f, 0.12f, 0.78f);
+        GUI.color = bgColor;
         GUI.DrawTexture(r, _zonePixel);
 
-        // Thin outline only
-        float borderAlpha = active ? 0.45f : 0.20f;
-        GUI.color = new Color(accent.r, accent.g, accent.b, borderAlpha);
-        float bw = 1.5f;
+        // Border outline
+        Color borderColor = active
+            ? accent
+            : new Color(accent.r * 0.5f + 0.2f, accent.g * 0.5f + 0.2f, accent.b * 0.5f + 0.2f, 0.65f);
+        float bw = active ? 2.5f : 1.5f;
+        GUI.color = borderColor;
         GUI.DrawTexture(new Rect(r.x, r.y, r.width, bw), _zonePixel);
         GUI.DrawTexture(new Rect(r.x, r.yMax - bw, r.width, bw), _zonePixel);
         GUI.DrawTexture(new Rect(r.x, r.y, bw, r.height), _zonePixel);
         GUI.DrawTexture(new Rect(r.xMax - bw, r.y, bw, r.height), _zonePixel);
 
-        // Small subtle label
+        // Text
+        GUI.color = Color.white;
+        if (string.IsNullOrEmpty(subLabel))
+        {
+            GUIStyle bStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(r.height * 0.38f), 11, 15),
+                richText = true
+            };
+            bStyle.normal.textColor = active ? Color.white : new Color(0.9f, 0.93f, 0.98f, 0.95f);
+            GUI.Label(r, label, bStyle);
+        }
+        else
+        {
+            GUIStyle topStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(r.height * 0.32f), 11, 14),
+                richText = true
+            };
+            topStyle.normal.textColor = active ? Color.white : new Color(0.9f, 0.93f, 0.98f, 0.95f);
+            Rect topRect = new Rect(r.x, r.y + 3f, r.width, r.height * 0.50f);
+            GUI.Label(topRect, label, topStyle);
+
+            GUIStyle subStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(r.height * 0.26f), 9, 12),
+                richText = true
+            };
+            subStyle.normal.textColor = active ? accent : new Color(0.7f, 0.75f, 0.82f, 0.85f);
+            Rect botRect = new Rect(r.x, r.y + r.height * 0.46f, r.width, r.height * 0.48f);
+            GUI.Label(botRect, subLabel, subStyle);
+        }
+    }
+
+    static Texture2D _zonePixel;
+    void DrawTouchZone(Rect r, bool active, string label, Color accent)
+    {
+        float fillAlpha = active ? pedalActiveOpacity : pedalOpacity;
+        // Semi-transparent solid background fill
+        GUI.color = new Color(accent.r * 0.25f, accent.g * 0.25f, accent.b * 0.25f, fillAlpha + 0.15f);
+        GUI.DrawTexture(r, _zonePixel);
+
+        // Highlight tint fill when pressed / active
+        if (active)
+        {
+            GUI.color = new Color(accent.r, accent.g, accent.b, fillAlpha);
+            GUI.DrawTexture(r, _zonePixel);
+        }
+
+        // Clean border outline
+        float borderAlpha = active ? 0.90f : 0.65f;
+        GUI.color = new Color(accent.r, accent.g, accent.b, borderAlpha);
+        float bw = 2.5f;
+        GUI.DrawTexture(new Rect(r.x, r.y, r.width, bw), _zonePixel);
+        GUI.DrawTexture(new Rect(r.x, r.yMax - bw, r.width, bw), _zonePixel);
+        GUI.DrawTexture(new Rect(r.x, r.y, bw, r.height), _zonePixel);
+        GUI.DrawTexture(new Rect(r.xMax - bw, r.y, bw, r.height), _zonePixel);
+
+        // Clear high-contrast pedal badge label
         GUIStyle labelStyle = new GUIStyle(GUI.skin.label)
         {
-            fontSize = 10,
+            fontSize = Mathf.Clamp(Mathf.RoundToInt(r.height * 0.18f), 12, 22),
             alignment = TextAnchor.MiddleCenter,
-            fontStyle = active ? FontStyle.Bold : FontStyle.Normal
+            fontStyle = FontStyle.Bold
         };
-        labelStyle.normal.textColor = new Color(1f, 1f, 1f, active ? 0.7f : 0.35f);
+        labelStyle.normal.textColor = active ? Color.white : new Color(accent.r, accent.g, accent.b, 0.95f);
         GUI.color = Color.white;
         GUI.Label(r, label, labelStyle);
+    }
+
+    static Texture2D _circleTex;
+    public static void DrawModernCircleButton(Rect r, string label, Color accent, bool active, string subLabel = null)
+    {
+        if (r.width <= 0f || r.height <= 0f) return;
+
+        if (_circleTex == null)
+        {
+            _circleTex = CreateCircleTexture(128);
+        }
+
+        // 1. Outer Border Ring
+        Color borderColor = active
+            ? accent
+            : new Color(accent.r * 0.55f + 0.2f, accent.g * 0.55f + 0.2f, accent.b * 0.55f + 0.2f, 0.80f);
+        GUI.color = borderColor;
+        GUI.DrawTexture(r, _circleTex);
+
+        // 2. Inner Circular Fill (inset by border width)
+        float bw = active ? 3.0f : 2.0f;
+        Rect innerRect = new Rect(r.x + bw, r.y + bw, r.width - 2f * bw, r.height - 2f * bw);
+        Color bgColor = active
+            ? new Color(accent.r * 0.45f, accent.g * 0.45f, accent.b * 0.45f, 0.92f)
+            : new Color(0.06f, 0.08f, 0.12f, 0.82f);
+        GUI.color = bgColor;
+        GUI.DrawTexture(innerRect, _circleTex);
+
+        // 3. Central Typography
+        GUI.color = Color.white;
+        if (string.IsNullOrEmpty(subLabel))
+        {
+            GUIStyle bStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(r.height * 0.32f), 11, 16),
+                richText = true
+            };
+            bStyle.normal.textColor = active ? Color.white : new Color(0.92f, 0.95f, 0.98f, 0.95f);
+            GUI.Label(r, label, bStyle);
+        }
+        else
+        {
+            GUIStyle topStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(r.height * 0.26f), 11, 15),
+                richText = true
+            };
+            topStyle.normal.textColor = active ? Color.white : new Color(0.92f, 0.95f, 0.98f, 0.95f);
+            Rect topRect = new Rect(r.x, r.y + r.height * 0.16f, r.width, r.height * 0.36f);
+            GUI.Label(topRect, label, topStyle);
+
+            GUIStyle subStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(r.height * 0.20f), 9, 12),
+                richText = true
+            };
+            subStyle.normal.textColor = active ? accent : new Color(0.70f, 0.75f, 0.82f, 0.85f);
+            Rect botRect = new Rect(r.x, r.y + r.height * 0.48f, r.width, r.height * 0.34f);
+            GUI.Label(botRect, subLabel, subStyle);
+        }
+    }
+
+    static Texture2D CreateCircleTexture(int size)
+    {
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        float radius = size * 0.5f;
+        Vector2 center = new Vector2(radius - 0.5f, radius - 0.5f);
+        Color[] cols = new Color[size * size];
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x, y), center);
+                if (d < radius - 1.2f)
+                {
+                    cols[y * size + x] = Color.white;
+                }
+                else if (d <= radius)
+                {
+                    float a = Mathf.Clamp01(radius - d);
+                    cols[y * size + x] = new Color(1f, 1f, 1f, a);
+                }
+                else
+                {
+                    cols[y * size + x] = Color.clear;
+                }
+            }
+        }
+        tex.SetPixels(cols);
+        tex.Apply();
+        return tex;
     }
 
     Rect ToGui(Rect z) =>

@@ -6,11 +6,12 @@
   "scale_m_per_px": 1.0,
   "airDensity": 1.1,
   "default_width_m": 14.0,
+  "start_finish_s": 109.8,
   "spawn_slot": {
-    "s": 0.0,
-    "x": 0.0,
-    "y": 0.0,
-    "z": 0.0,
+    "s": 4.8,
+    "x": 0.8,
+    "y": 0.06,
+    "z": 3.8,
     "yaw_deg": 0.0
   },
   "sectors": [

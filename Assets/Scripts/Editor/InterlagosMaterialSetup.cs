@@ -102,7 +102,7 @@ namespace F1Sim.EditorTools
                 {
                     mat.SetFloat("_Smoothness", 0.85f);
                 }
-                else if (mlow.Contains("road") || mlow.Contains("asphalt") || mlow.Contains("rdil"))
+                else if (mlow.Contains("road") || mlow.Contains("asphalt") || mlow.Contains("rdil") || mlow.StartsWith("rd"))
                 {
                     mat.SetFloat("_Smoothness", 0.15f);
                 }
@@ -149,7 +149,7 @@ namespace F1Sim.EditorTools
                 bool isShadowOrEmpty = mlow.Contains("5165") || mlow.Contains("5386") || mlow.Contains("5387") || 
                                        mlow.Contains("multimat_134_slot") || mlow.Contains("genshadow");
 
-                bool isTireDecal = mlow.Contains("groove") || mlow.Contains("marbles");
+                bool isTireDecal = mlow.Contains("groove"); // Only groove is a tire mark overlay decal. rdmarbles* are base road asphalt surfaces.
 
                 bool isCutout = mlow.Contains("fence") || mlow.Contains("tree") || mlow.Contains("bush") ||
                                 mlow.Contains("chroma") || mlow.Contains("wire") || mlow.Contains("arvore") ||
@@ -189,14 +189,21 @@ namespace F1Sim.EditorTools
                 }
                 else if (isTireDecal)
                 {
-                    // Groove / Marbles translucent decal
+                    // Groove translucent tire mark decal (matte, non-reflective)
                     mat.SetFloat("_Surface", 1.0f);
                     mat.SetFloat("_Blend", 0.0f);
                     mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
                     mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
                     mat.SetFloat("_ZWrite", 0.0f);
-                    mat.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0.25f));
+                    mat.SetFloat("_BlendModePreserveSpecular", 0.0f);
+                    mat.SetFloat("_EnvironmentReflections", 0.0f);
+                    mat.SetFloat("_GlossyReflections", 0.0f);
+                    mat.SetFloat("_ScreenSpaceReflections", 0.0f);
+                    mat.SetFloat("_ScreenSpaceReflectionsContributeTransparent", 0.0f);
+                    mat.SetFloat("_Smoothness", 0.05f);
+                    mat.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0.40f));
                     mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
                     mat.SetOverrideTag("RenderType", "Transparent");
                     mat.renderQueue = 3000;
                 }

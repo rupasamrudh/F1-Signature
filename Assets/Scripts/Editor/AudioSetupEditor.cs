@@ -8,14 +8,28 @@ using UnityEngine.Audio;
 
 namespace F1Sim.EditorTools
 {
+    [InitializeOnLoad]
     public static class AudioSetupEditor
     {
         private const string ScenePath = "Assets/Scenes/Track_F1Signature.unity";
         private const string MixerPath = "Assets/Audio/F1VehicleAudioMixer.mixer";
 
+        static AudioSetupEditor()
+        {
+            DisableSpeakerGizmos();
+            EditorApplication.delayCall += DisableSpeakerGizmos;
+        }
+
+        [MenuItem("Tools/F1 Signature/Hide Audio Gizmos")]
+        public static void DisableSpeakerGizmos()
+        {
+            CarAudioManager.DisableSpeakerGizmo();
+        }
+
         [MenuItem("Tools/F1 Signature/Setup Vehicle Audio System")]
         public static void SetupAudioSystemMenu()
         {
+            DisableSpeakerGizmos();
             SetupAudioSystem(true);
         }
 
@@ -176,6 +190,7 @@ namespace F1Sim.EditorTools
             {
                 var go = new GameObject(name);
                 go.transform.SetParent(parent.transform, false);
+                go.hideFlags = HideFlags.HideInHierarchy | HideFlags.HideInInspector;
                 child = go.transform;
             }
 
@@ -187,11 +202,11 @@ namespace F1Sim.EditorTools
 
             src.playOnAwake = false;
             src.loop = loop;
-            src.spatialBlend = 0.85f;
-            src.rolloffMode = AudioRolloffMode.Logarithmic;
-            src.minDistance = 1.5f;
-            src.maxDistance = 75.0f;
-            src.dopplerLevel = 0.2f;
+            src.spatialBlend = 0.15f;
+            src.rolloffMode = AudioRolloffMode.Linear;
+            src.minDistance = 25.0f;
+            src.maxDistance = 150.0f;
+            src.dopplerLevel = 0.0f;
             src.outputAudioMixerGroup = group;
 
             EditorUtility.SetDirty(src);

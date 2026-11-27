@@ -13,9 +13,10 @@ namespace F1Sim.EditorTools
             EditorApplication.delayCall += () =>
             {
                 Material tyreSides = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Ferrari/tyre_sides.mat");
-                if (tyreSides != null && (tyreSides.GetTexture("_BumpMap") != null || tyreSides.GetTextureScale("_BaseMap").y > 0))
+                Material decals = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Ferrari/sf26_decals.mat");
+                if (tyreSides != null && (tyreSides.GetTexture("_BumpMap") != null || tyreSides.GetTextureScale("_BaseMap").y > 0 || (decals != null && decals.GetTextureScale("_BaseMap").y > 0)))
                 {
-                    Debug.Log("[FerrariMaterialSetup] Auto-updating Ferrari materials to fix bloom fireflies and wheel textures...");
+                    Debug.Log("[FerrariMaterialSetup] Auto-updating Ferrari materials to fix bloom fireflies, wheel textures, and livery orientation...");
                     CreateOrUpdateMaterials();
                 }
             };
@@ -257,8 +258,9 @@ namespace F1Sim.EditorTools
                     mat.DisableKeyword("_ALPHATEST_ON");
                 }
 
-                // Invert V coordinate on tyre_sides so the red Pirelli stripe maps to the sidewall
-                if (matName == "tyre_sides")
+                // Invert V coordinate on tyre_sides, livery decals, driver numbers, and steering wheel decals
+                // so textures map right-side up without vertical inversion.
+                if (matName == "tyre_sides" || matName == "sf26_decals" || matName == "sf26_decals2" || matName == "numbers" || matName == "sf26_sw_decals")
                 {
                     mat.SetTextureScale("_BaseMap", new Vector2(1f, -1f));
                     mat.SetTextureOffset("_BaseMap", new Vector2(0f, 1f));

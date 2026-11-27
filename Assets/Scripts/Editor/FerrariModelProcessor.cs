@@ -144,7 +144,7 @@ namespace F1Sim.EditorTools
 
         static ProcessedGroup ExtractWheelMesh(Mesh src, Material[] srcMats, Vector3 centerUnity, int signX, int signZ, string name)
         {
-            return ExtractSubmeshGroup(src, srcMats, (submeshIdx, triCenterUnity) =>
+            var group = ExtractSubmeshGroup(src, srcMats, (submeshIdx, triCenterUnity) =>
             {
                 // Wheel primitives: 3 (discs), 4 (sides), 5 (hub), 6 (tread)
                 bool isWheelSubmesh = (submeshIdx >= 3 && submeshIdx <= 6);
@@ -153,6 +153,78 @@ namespace F1Sim.EditorTools
                 bool matchesQuadrant = (Mathf.Sign(triCenterUnity.x) == signX) && (Mathf.Sign(triCenterUnity.z) == signZ);
                 return matchesQuadrant;
             }, centerUnity, name);
+
+            AlignWheelMesh(group.mesh);
+            return group;
+        }
+
+        static void AlignWheelMesh(Mesh mesh)
+        {
+            Vector3[] verts = mesh.vertices;
+            Vector3[] normals = mesh.normals;
+            Vector4[] tangents = mesh.tangents;
+            int n = verts.Length;
+            if (n < 10) return;
+
+            // 1. Plane fitting: X = ay * Y + az * Z + x0 via least-squares
+            double sY2 = 0, sYZ = 0, sY = 0, sZ2 = 0, sZ = 0;
+            double sYX = 0, sZX = 0, sX = 0;
+            for (int i = 0; i < n; i++)
+            {
+                double x = verts[i].x;
+                double y = verts[i].y;
+                double z = verts[i].z;
+                sY2 += y * y;
+                sYZ += y * z;
+                sY += y;
+                sZ2 += z * z;
+                sZ += z;
+                sYX += y * x;
+                sZX += z * x;
+                sX += x;
+            }
+
+            double det = sY2 * (sZ2 * n - sZ * sZ) - sYZ * (sYZ * n - sZ * sY) + sY * (sYZ * sZ - sZ2 * sY);
+            if (Math.Abs(det) > 1e-9)
+            {
+                double invDet = 1.0 / det;
+                double ay = (sYX * (sZ2 * n - sZ * sZ) - sYZ * (sZX * n - sZ * sX) + sY * (sZX * sZ - sZ2 * sX)) * invDet;
+                double az = (sY2 * (sZX * n - sZ * sX) - sYX * (sYZ * n - sZ * sY) + sY * (sYZ * sX - sZX * sY)) * invDet;
+
+                Vector3 normal = new Vector3(1f, -(float)ay, -(float)az).normalized;
+                if (normal.x < 0f) normal = -normal;
+
+                Quaternion rot = Quaternion.FromToRotation(normal, Vector3.right);
+
+                for (int i = 0; i < n; i++)
+                {
+                    verts[i] = rot * verts[i];
+                    if (normals != null && normals.Length > i) normals[i] = rot * normals[i];
+                    if (tangents != null && tangents.Length > i)
+                    {
+                        Vector3 rotT = rot * new Vector3(tangents[i].x, tangents[i].y, tangents[i].z);
+                        tangents[i] = new Vector4(rotT.x, rotT.y, rotT.z, tangents[i].w);
+                    }
+                }
+            }
+
+            // 2. Recenter (Y, Z) to exact (0, 0)
+            double sumY = 0, sumZ = 0;
+            for (int i = 0; i < n; i++)
+            {
+                sumY += verts[i].y;
+                sumZ += verts[i].z;
+            }
+            Vector3 centerOffset = new Vector3(0f, (float)(sumY / n), (float)(sumZ / n));
+            for (int i = 0; i < n; i++)
+            {
+                verts[i] -= centerOffset;
+            }
+
+            mesh.vertices = verts;
+            if (normals != null && normals.Length == n) mesh.normals = normals;
+            if (tangents != null && tangents.Length == n) mesh.tangents = tangents;
+            mesh.RecalculateBounds();
         }
 
         static ProcessedGroup ExtractSubmeshGroup(Mesh src, Material[] srcMats, Func<int, Vector3, bool> triangleFilter, Vector3 pivotOffset, string name)

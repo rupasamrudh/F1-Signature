@@ -15,6 +15,8 @@ public class CarController : MonoBehaviour
     // ── Properties exposed to CarInput and CarAudioManager ────────────────
     public float SpeedKmh => model != null ? model.TotalSpeedKmh : 0f;
     public float ForwardSpeedMs => model != null ? model.Vx : 0f;
+    public float LongAccel => model != null ? model.Ax : 0f;
+    public float LongG     => model != null ? model.Ax / 9.81f : 0f;
     public float LatG     => model != null ? model.LatG : 0f;
     public float YawRate  => model != null ? model.YawRate : 0f;
     public float SteerAngleDeg => model != null ? model.FinalSteerAngleDeg : 0f;
@@ -26,6 +28,16 @@ public class CarController : MonoBehaviour
     public int Gear => model != null ? model.Gear : 1;
     public bool IsShifting => model != null ? model.IsShifting : false;
     public float MaxTireSlip => model != null ? model.MaxTireSlip : 0f;
+
+    // ── Pit Limiter & Aero DRS Properties ───────────────────────────────────
+    public bool isPitLimiterActive = false;
+    public const float PIT_LIMIT_KMH = 80.0f;
+    public bool IsDrsActive => model != null && model.Aero.CurrentMode == AeroMode.Straight;
+
+    public void TogglePitLimiter()
+    {
+        isPitLimiterActive = !isPitLimiterActive;
+    }
 
     // ── Collision Event for CarAudioManager ───────────────────────────────
     public event Action<float, Vector3> OnBarrierCollision;
@@ -69,6 +81,15 @@ public class CarController : MonoBehaviour
     float   autoResetTimer;
     float   offTrackTimer;
 
+    // ── Visual Wheel Geometry (Ferrari SF-26 Prefab) ───────────────────────
+    public const float kVisualWheelbase   = 3.533f;
+    public const float kVisualFrontAxleZ  = 1.522f;
+    public const float kVisualRearAxleZ   = -2.011f;
+    public const float kVisualAxleMidZ    = (kVisualFrontAxleZ + kVisualRearAxleZ) * 0.5f; // -0.2445f
+    public const float kVisualTrackWidthF = 1.600f;
+    public const float kVisualTrackWidthR = 1.526f;
+    public const float kVisualTireRadius  = 0.358f;
+
     // ── Persistent Spline & Suspension Tracking ────────────────────────────
     int   carSplineIndex = 0;
     float smoothGroundY;
@@ -76,6 +97,12 @@ public class CarController : MonoBehaviour
     float smoothRollDeg;
     bool  isGroundInitialized = false;
     bool  isCarOverRoadOrKerb = false;
+
+    // Real-time wheel ground tracking exposed to WheelVisualBinder for suspension travel
+    [System.NonSerialized] public float lastGroundFL;
+    [System.NonSerialized] public float lastGroundFR;
+    [System.NonSerialized] public float lastGroundRL;
+    [System.NonSerialized] public float lastGroundRR;
 
     // ── Minimap ────────────────────────────────────────────────────────────
     Texture2D minimapTex;
@@ -124,6 +151,7 @@ public class CarController : MonoBehaviour
     bool     stylesReady;
 
     string lastSavePath = "";
+    float csvBannerTimer = 0f;
 
     public void ShowResetBanner(float duration = 5.0f)
     {
@@ -191,15 +219,22 @@ public class CarController : MonoBehaviour
         if (trackConfig.spawn_slot != null)
         {
             var sp = trackConfig.spawn_slot;
-            startPos = new Vector3(sp.x, sp.y + config.tireRadius, sp.z);
             startYaw = sp.yaw_deg * Mathf.Deg2Rad;
-            startRot = Quaternion.Euler(0f, sp.yaw_deg, 0f);
+            ComputeGroundAlignment(sp.x, sp.z, startYaw, out float groundY, out float startPitch, out float startRoll, out _);
+            startPos = new Vector3(sp.x, groundY, sp.z);
+            startRot = Quaternion.Euler(startPitch, sp.yaw_deg, startRoll);
+            smoothGroundY = groundY;
+            smoothPitchDeg = startPitch;
+            smoothRollDeg = startRoll;
         }
         else
         {
             startPos = transform.position;
             startRot = transform.rotation;
             startYaw = transform.eulerAngles.y * Mathf.Deg2Rad;
+            smoothGroundY = startPos.y;
+            smoothPitchDeg = 0f;
+            smoothRollDeg = 0f;
         }
 
         transform.position = startPos;
@@ -215,9 +250,6 @@ public class CarController : MonoBehaviour
         currPos = prevPos = startPos;
         currRot = prevRot = startRot;
         currYaw = prevYaw = startYaw;
-        smoothGroundY = startPos.y;
-        smoothPitchDeg = 0f;
-        smoothRollDeg = 0f;
         isGroundInitialized = true;
         carSplineIndex = 0;
 
@@ -229,6 +261,8 @@ public class CarController : MonoBehaviour
         if (spline != null)
         {
             var startQ = spline.Query(startPos.x, startPos.z);
+            carSplineIndex = startQ.nearestIndex;
+            if (lapTimer != null) lapTimer.Reset(startQ.s);
             float startOffset = MathF.Abs(startQ.lateralOffset);
             if (startOffset >= 3.0f)
             {
@@ -267,23 +301,34 @@ public class CarController : MonoBehaviour
     public void ResetCar()
     {
         SaveTelemetry();
+        ComputeGroundAlignment(startPos.x, startPos.z, startYaw, out float groundY, out float startPitch, out float startRoll, out _);
+        startPos = new Vector3(startPos.x, groundY, startPos.z);
+        startRot = Quaternion.Euler(startPitch, startYaw * Mathf.Rad2Deg, startRoll);
         model.Reset(startPos.x, startPos.z, startYaw);
         currPos = prevPos = startPos;
         currRot = prevRot = startRot;
         currYaw = prevYaw = startYaw;
-        smoothGroundY = startPos.y;
-        smoothPitchDeg = 0f;
-        smoothRollDeg = 0f;
-        isGroundInitialized = true;
+        smoothGroundY = groundY;
+        smoothPitchDeg = startPitch;
+        smoothRollDeg = startRoll;
         carSplineIndex = 0;
         transform.position = startPos;
         transform.rotation = startRot;
         autoResetTimer = 0f;
         offTrackTimer = 0f;
         avgStepMs = 0f;
-        isGroundInitialized = false;
-        carSplineIndex = 0;
-        if (lapTimer != null) lapTimer.Reset();
+        isGroundInitialized = true;
+        if (spline != null)
+        {
+            var startQ = spline.Query(startPos.x, startPos.z);
+            carSplineIndex = startQ.nearestIndex;
+            if (lapTimer != null) lapTimer.Reset(startQ.s);
+        }
+        else
+        {
+            carSplineIndex = 0;
+            if (lapTimer != null) lapTimer.Reset();
+        }
         var chaseCam = FindAnyObjectByType<ChaseCamera>();
         if (chaseCam != null) chaseCam.SnapToTarget();
         telemetry.StartRecording();
@@ -297,12 +342,15 @@ public class CarController : MonoBehaviour
         carSplineIndex = q.nearestIndex;
         float yawRad = q.headingRad;
         model.Reset(q.x, q.z, yawRad);
-        float groundY = GetWheelGroundHeight(q.x, q.z, q.y);
-        currPos = prevPos = new Vector3(q.x, groundY + config.tireRadius, q.z);
+        ComputeGroundAlignment(q.x, q.z, yawRad, out float groundY, out float pitchDeg, out float rollDeg, out _);
+        currPos = prevPos = new Vector3(q.x, groundY, q.z);
         currYaw = prevYaw = yawRad;
-        isGroundInitialized = false;
+        smoothGroundY = groundY;
+        smoothPitchDeg = pitchDeg;
+        smoothRollDeg = rollDeg;
+        isGroundInitialized = true;
         transform.position = currPos;
-        transform.rotation = Quaternion.Euler(0f, yawRad * Mathf.Rad2Deg, 0f);
+        transform.rotation = Quaternion.Euler(pitchDeg, yawRad * Mathf.Rad2Deg, rollDeg);
         var chaseCam = FindAnyObjectByType<ChaseCamera>();
         if (chaseCam != null) chaseCam.SnapToTarget();
         offTrackTimer = 0f;
@@ -319,12 +367,15 @@ public class CarController : MonoBehaviour
 
         model.Reset(q.x, q.z, q.headingRad);
         model.Vx = 150f / 3.6f; // 150 km/h
-        float groundY = GetWheelGroundHeight(q.x, q.z, q.y);
-        currPos = prevPos = new Vector3(q.x, groundY + config.tireRadius, q.z);
+        ComputeGroundAlignment(q.x, q.z, q.headingRad, out float groundY, out float pitchDeg, out float rollDeg, out _);
+        currPos = prevPos = new Vector3(q.x, groundY, q.z);
         currYaw = prevYaw = q.headingRad;
-        isGroundInitialized = false;
+        smoothGroundY = groundY;
+        smoothPitchDeg = pitchDeg;
+        smoothRollDeg = rollDeg;
+        isGroundInitialized = true;
         transform.position = currPos;
-        transform.rotation = Quaternion.Euler(0f, q.headingRad * Mathf.Rad2Deg, 0f);
+        transform.rotation = Quaternion.Euler(pitchDeg, q.headingRad * Mathf.Rad2Deg, rollDeg);
         var chaseCam = FindAnyObjectByType<ChaseCamera>();
         if (chaseCam != null) chaseCam.SnapToTarget();
     }
@@ -338,6 +389,7 @@ public class CarController : MonoBehaviour
         {
             System.IO.File.WriteAllText(path, telemetry.ToCsv(config));
             lastSavePath = path;
+            csvBannerTimer = 4.0f;
             UnityEngine.Debug.Log($"[Telemetry] Saved {telemetry.Count} frames → {path}");
         }
         catch (Exception e)
@@ -366,6 +418,33 @@ public class CarController : MonoBehaviour
             brkCmd = aBrk;
         }
 
+        // ── Pit Limiter (80 km/h Governor) ────────────────────────────────
+        if (isPitLimiterActive)
+        {
+            float speedKmh = model.TotalSpeedKmh;
+            if (model.Vx > 0.05f) // Apply to forward driving
+            {
+                if (speedKmh >= PIT_LIMIT_KMH)
+                {
+                    thrCmd = 0f;
+                    if (speedKmh > PIT_LIMIT_KMH + 0.3f)
+                    {
+                        // Mild automated governor braking if entering pitlane hot
+                        float overspeedKmh = speedKmh - PIT_LIMIT_KMH;
+                        float govBrake = Mathf.Clamp01(overspeedKmh * 0.15f);
+                        brkCmd = Mathf.Max(brkCmd, govBrake);
+                    }
+                }
+                else if (speedKmh >= PIT_LIMIT_KMH - 6.0f)
+                {
+                    // Smooth taper between 74 km/h and 80 km/h to avoid oscillations
+                    float headroom = (PIT_LIMIT_KMH - speedKmh) / 6.0f;
+                    float maxAllowedThr = Mathf.Clamp01(headroom * 0.85f + 0.15f);
+                    thrCmd = Mathf.Min(thrCmd, maxAllowedThr);
+                }
+            }
+        }
+
         // ── 3D Track Query for Wheel Surfaces & Gravity Pitch ─────────────
         float carS = 0f;
         float tangentHeading = 0f;
@@ -379,36 +458,8 @@ public class CarController : MonoBehaviour
             tangentHeading = qCar.headingRad;
             model.trackPitchRad = Mathf.Atan(qCar.slope);
 
-            // Compute wheel world positions
-            float cosY = Mathf.Cos(model.Yaw), sinY = Mathf.Sin(model.Yaw);
-            float L = config.wheelbase;
-            float a = L * (1f - config.frontWeightFrac);
-            float b = L * config.frontWeightFrac;
-            float twF = config.trackWidthF * 0.5f;
-            float twR = config.trackWidthR * 0.5f;
-
-            // Forward: (sinY, cosY), Right: (cosY, -sinY)
-            Vector2 fwd = new Vector2(sinY, cosY);
-            Vector2 right = new Vector2(cosY, -sinY);
-
-            Vector2 cPos = new Vector2(model.X, model.Z);
-            Vector2 posFL = cPos + fwd * a - right * twF;
-            Vector2 posFR = cPos + fwd * a + right * twF;
-            Vector2 posRL = cPos - fwd * b - right * twR;
-            Vector2 posRR = cPos - fwd * b + right * twR;
-
-            var qFL = spline.Query(posFL.x, posFL.y, carSplineIndex);
-            var qFR = spline.Query(posFR.x, posFR.y, carSplineIndex);
-            var qRL = spline.Query(posRL.x, posRL.y, carSplineIndex);
-            var qRR = spline.Query(posRR.x, posRR.y, carSplineIndex);
-
-            // Real 3D Physical Ground Height & Road Mesh Detection from Track Mesh Colliders for each wheel
-            float groundFL = GetWheelGroundHeight(posFL.x, posFL.y, qFL.heightY, out bool roadFL);
-            float groundFR = GetWheelGroundHeight(posFR.x, posFR.y, qFR.heightY, out bool roadFR);
-            float groundRL = GetWheelGroundHeight(posRL.x, posRL.y, qRL.heightY, out bool roadRL);
-            float groundRR = GetWheelGroundHeight(posRR.x, posRR.y, qRR.heightY, out bool roadRR);
-
-            isCarOverRoadOrKerb = roadFL || roadFR || roadRL || roadRR;
+            // Real 3D Physical Ground Height, Pitch, Roll & Ride Height for Ferrari SF-26
+            ComputeGroundAlignment(model.X, model.Z, model.Yaw, out float targetY, out float targetPitchDeg, out float targetRollDeg, out isCarOverRoadOrKerb);
 
             // Set surface grip & rolling drag
             bool inPit = IsInPitCorridor(model.X, model.Z);
@@ -422,26 +473,17 @@ public class CarController : MonoBehaviour
             }
             else
             {
-                (model.surfaceGripFL, model.surfaceDragFL) = GetSurfaceProps(qFL.surface);
-                (model.surfaceGripFR, model.surfaceDragFR) = GetSurfaceProps(qFR.surface);
-                (model.surfaceGripRL, model.surfaceDragRL) = GetSurfaceProps(qRL.surface);
-                (model.surfaceGripRR, model.surfaceDragRR) = GetSurfaceProps(qRR.surface);
+                (model.surfaceGripFL, model.surfaceDragFL) = GetSurfaceProps(qCar.surface);
+                (model.surfaceGripFR, model.surfaceDragFR) = GetSurfaceProps(qCar.surface);
+                (model.surfaceGripRL, model.surfaceDragRL) = GetSurfaceProps(qCar.surface);
+                (model.surfaceGripRR, model.surfaceDragRR) = GetSurfaceProps(qCar.surface);
 
-                allWheelsOff = (qFL.surface != SurfaceType.Asphalt) && (qFR.surface != SurfaceType.Asphalt) &&
-                               (qRL.surface != SurfaceType.Asphalt) && (qRR.surface != SurfaceType.Asphalt);
+                allWheelsOff = (qCar.surface != SurfaceType.Asphalt);
             }
 
             // ── Physical Barrier Collision Resolution (Dual 3D Mesh + Envelope) ───
             ResolveBarrierCollisions(qCar);
 
-            float avgWheelY = (groundFL + groundFR + groundRL + groundRR) * 0.25f;
-            float targetPitchDeg = Mathf.Atan2((groundRL + groundRR) * 0.5f - (groundFL + groundFR) * 0.5f, L) * Mathf.Rad2Deg;
-            float targetRollDeg = Mathf.Atan2((groundFR + groundRR) * 0.5f - (groundFL + groundRL) * 0.5f, twF + twR) * Mathf.Rad2Deg;
-
-            targetPitchDeg = Mathf.Clamp(targetPitchDeg, -30f, 30f);
-            targetRollDeg = Mathf.Clamp(targetRollDeg, -30f, 30f);
-
-            float targetY = avgWheelY + config.tireRadius;
             float dt = Time.fixedDeltaTime;
 
             if (!isGroundInitialized)
@@ -453,11 +495,21 @@ public class CarController : MonoBehaviour
             }
             else
             {
-                // F1-grade critical suspension damping (20 rad/s ~ 50ms settling):
-                // Absorbs micro-elevation changes and road-triangle facets, completely eliminating vibration, jitter, and bouncing
-                smoothGroundY = Mathf.Lerp(smoothGroundY, targetY, 1f - Mathf.Exp(-20f * dt));
-                smoothPitchDeg = Mathf.LerpAngle(smoothPitchDeg, targetPitchDeg, 1f - Mathf.Exp(-20f * dt));
-                smoothRollDeg = Mathf.LerpAngle(smoothRollDeg, targetRollDeg, 1f - Mathf.Exp(-20f * dt));
+                // Stiff, high-downforce F1 pushrod suspension tracking:
+                // Hard bump & rebound coupling ensures the chassis stays firmly planted on the track
+                // Eliminates mushy, jelly float while moving and steering
+                if (targetY > smoothGroundY)
+                {
+                    // Instant clearance floor: never allow chassis origin to fall below minimum ground clearance envelope
+                    smoothGroundY = Mathf.Max(smoothGroundY, targetY - 0.002f);
+                    smoothGroundY = Mathf.Lerp(smoothGroundY, targetY, 1f - Mathf.Exp(-85f * dt));
+                }
+                else
+                {
+                    smoothGroundY = Mathf.Lerp(smoothGroundY, targetY, 1f - Mathf.Exp(-50f * dt));
+                }
+                smoothPitchDeg = Mathf.LerpAngle(smoothPitchDeg, targetPitchDeg, 1f - Mathf.Exp(-60f * dt));
+                smoothRollDeg = Mathf.LerpAngle(smoothRollDeg, targetRollDeg, 1f - Mathf.Exp(-60f * dt));
             }
         }
 
@@ -498,7 +550,11 @@ public class CarController : MonoBehaviour
             }
         }
 
-        telemetry.Record(Time.time, model, thrCmd, brkCmd);
+        telemetry.Record(Time.time, model, thrCmd, brkCmd,
+            input != null ? input.RawRollDeg : 0f,
+            input != null ? input.RelDeg : 0f,
+            input != null ? input.SteerTarget : 0f,
+            input != null ? input.Steer : 0f);
 
         currYaw = model.Yaw;
 
@@ -796,9 +852,9 @@ public class CarController : MonoBehaviour
     {
         isRoadOrKerb = false;
         // 1. Raycast down from above the current vehicle position
-        float startY = Mathf.Max(currPos.y, fallbackY) + 2.5f;
+        float startY = Mathf.Max(currPos.y, fallbackY) + 3.0f;
         Vector3 rayStart = new Vector3(wx, startY, wz);
-        var hits = Physics.RaycastAll(rayStart, Vector3.down, 6.0f, ~0, QueryTriggerInteraction.Ignore);
+        var hits = Physics.RaycastAll(rayStart, Vector3.down, 12.0f, ~0, QueryTriggerInteraction.Ignore);
 
         float bestRoadY = float.MinValue;
         float bestGroundY = float.MinValue;
@@ -904,6 +960,87 @@ public class CarController : MonoBehaviour
         return GetWheelGroundHeight(wx, wz, fallbackY, out _);
     }
 
+    public void ComputeGroundAlignment(float posX, float posZ, float yawRad, out float targetY, out float targetPitchDeg, out float targetRollDeg, out bool isRoadOrKerb)
+    {
+        float cosY = Mathf.Cos(yawRad), sinY = Mathf.Sin(yawRad);
+        Vector2 fwd = new Vector2(sinY, cosY);
+        Vector2 right = new Vector2(cosY, -sinY);
+        Vector2 cPos = new Vector2(posX, posZ);
+
+        float halfTwF = kVisualTrackWidthF * 0.5f;
+        float halfTwR = kVisualTrackWidthR * 0.5f;
+
+        // In Ferrari SF-26 prefab local space:
+        // Wheel_FL is at local X = +0.799m (+right), Z = +1.522m
+        // Wheel_FR is at local X = -0.800m (-right), Z = +1.522m
+        // Wheel_RL is at local X = +0.763m (+right), Z = -2.011m
+        // Wheel_RR is at local X = -0.763m (-right), Z = -2.011m
+        Vector2 posFL = cPos + fwd * kVisualFrontAxleZ + right * halfTwF;
+        Vector2 posFR = cPos + fwd * kVisualFrontAxleZ - right * halfTwF;
+        Vector2 posRL = cPos + fwd * kVisualRearAxleZ + right * halfTwR;
+        Vector2 posRR = cPos + fwd * kVisualRearAxleZ - right * halfTwR;
+
+        float groundFL = 0f, groundFR = 0f, groundRL = 0f, groundRR = 0f;
+        bool roadFL = false, roadFR = false, roadRL = false, roadRR = false;
+
+        if (spline != null)
+        {
+            var qFL = spline.Query(posFL.x, posFL.y, carSplineIndex);
+            var qFR = spline.Query(posFR.x, posFR.y, carSplineIndex);
+            var qRL = spline.Query(posRL.x, posRL.y, carSplineIndex);
+            var qRR = spline.Query(posRR.x, posRR.y, carSplineIndex);
+
+            groundFL = GetWheelGroundHeight(posFL.x, posFL.y, qFL.heightY, out roadFL);
+            groundFR = GetWheelGroundHeight(posFR.x, posFR.y, qFR.heightY, out roadFR);
+            groundRL = GetWheelGroundHeight(posRL.x, posRL.y, qRL.heightY, out roadRL);
+            groundRR = GetWheelGroundHeight(posRR.x, posRR.y, qRR.heightY, out roadRR);
+        }
+
+        lastGroundFL = groundFL;
+        lastGroundFR = groundFR;
+        lastGroundRL = groundRL;
+        lastGroundRR = groundRR;
+
+        isRoadOrKerb = roadFL || roadFR || roadRL || roadRR;
+
+        float groundF = (groundFL + groundFR) * 0.5f;
+        float groundR = (groundRL + groundRR) * 0.5f;
+        float groundPosX = (groundFL + groundRL) * 0.5f;
+        float groundNegX = (groundFR + groundRR) * 0.5f;
+
+        // In Unity Euler angles around local X axis:
+        // Positive rotation tilts nose DOWN, negative rotation tilts nose UP.
+        // On an uphill slope (groundF > groundR), (groundR - groundF) is negative -> targetPitchDeg is negative -> tilts nose UP!
+        targetPitchDeg = Mathf.Atan2(groundR - groundF, kVisualWheelbase) * Mathf.Rad2Deg;
+
+        // In Unity Euler angles around local Z axis (roll):
+        // Positive rotation around +Z tilts +X upward and -X downward.
+        // When groundPosX > groundNegX (+X side is higher), targetRollDeg is positive -> tilts +X side up!
+        targetRollDeg = Mathf.Atan2(groundPosX - groundNegX, (kVisualTrackWidthF + kVisualTrackWidthR) * 0.5f) * Mathf.Rad2Deg;
+
+        targetPitchDeg = Mathf.Clamp(targetPitchDeg, -30f, 30f);
+        targetRollDeg = Mathf.Clamp(targetRollDeg, -30f, 30f);
+
+        // Anti-clipping envelope calculation:
+        // Computes the required vehicle origin Y so that NO wheel ever penetrates the ground mesh
+        float pitchRad = targetPitchDeg * Mathf.Deg2Rad;
+        float rollRad = targetRollDeg * Mathf.Deg2Rad;
+        float cosP = Mathf.Cos(pitchRad), sinP = Mathf.Sin(pitchRad);
+        float cosR = Mathf.Cos(rollRad), sinR = Mathf.Sin(rollRad);
+
+        // For each wheel (lx, ly, lz):
+        // Local displacement under R_x(pitch) * R_z(roll): py = lx * sinR * cosP - lz * sinP
+        // Bottom of tire in world space: Y_chassis + py - kVisualTireRadius
+        // Clearance requirement: Y_chassis >= ground_i + kVisualTireRadius - py
+        float reqFL = groundFL + kVisualTireRadius - (( halfTwF * sinR) * cosP - kVisualFrontAxleZ * sinP);
+        float reqFR = groundFR + kVisualTireRadius - (((-halfTwF) * sinR) * cosP - kVisualFrontAxleZ * sinP);
+        float reqRL = groundRL + kVisualTireRadius - (( halfTwR * sinR) * cosP - kVisualRearAxleZ * sinP);
+        float reqRR = groundRR + kVisualTireRadius - (((-halfTwR) * sinR) * cosP - kVisualRearAxleZ * sinP);
+
+        const float kContactBuffer = 0.012f; // 12mm contact cushion ensuring zero facet clipping
+        targetY = Mathf.Max(Mathf.Max(reqFL, reqFR), Mathf.Max(reqRL, reqRR)) + kContactBuffer;
+    }
+
     void Update()
     {
         if (isTrackDataMissing) return;
@@ -917,12 +1054,16 @@ public class CarController : MonoBehaviour
             frameTimeAvgMs = frameTimeAvgMs + 0.05f * (dt * 1000f - frameTimeAvgMs);
         }
 
+        if (csvBannerTimer > 0f) csvBannerTimer -= dt;
+
         var kb = Keyboard.current;
         if (kb != null)
         {
+            if (kb.kKey.wasPressedThisFrame) SaveTelemetry();
             if (kb.rKey.wasPressedThisFrame) ResetCar();
             if (kb.tKey.wasPressedThisFrame) ResetToNearestTrack();
             if (kb.xKey.wasPressedThisFrame) ToggleAero();
+            if (kb.pKey.wasPressedThisFrame || kb.lKey.wasPressedThisFrame) TogglePitLimiter();
             if (kb.leftBracketKey.wasPressedThisFrame)
                 config.brakeBiasFront = Mathf.Clamp(config.brakeBiasFront - brakeBiasStep, 0.4f, 0.9f);
             if (kb.rightBracketKey.wasPressedThisFrame)
@@ -968,57 +1109,71 @@ public class CarController : MonoBehaviour
         float sh = Screen.height;
         float s  = Mathf.Min(sw / 800f, sh / 480f);
 
-        // ── Main telemetry panel (top-left) ───────────────────────────────
-        const float panelX = 8f;
-        const float panelY = 8f;
-        const float panelW = 340f;
-        const float rowH   = 22f;
-        const float padV   = 6f;
-
-        string aeroStr  = model.Aero.CurrentMode == AeroMode.Corner ? "CRN" : "STR";
-        string shiftStr = model.IsShifting ? " ⚡" : "";
-        string assistStr = config.stabilityAssist > 0f ? "ON" : "OFF";
-
-        string[] rows =
-        {
-            $"<b>Speed</b> {model.TotalSpeedKmh:0} km/h   Vx {model.VxKmh:0} km/h",
-            $"Lat G {model.LatG:0.00}   beta {model.BetaDeg:0.0}°",
-            $"Steer {input.Steer:0.00}  Thr {input.Throttle:0.00}  Brk {input.Brake:0.00}",
-            $"rear trac {model.RearTractionUse:0.00}  lat scale {model.RearLateralGripScale:0.00}",
-            $"<b>Gear {(model.Gear == -1 ? "R" : model.Gear.ToString())}</b>  RPM {model.EngineRpm:0}{shiftStr}  Aero {aeroStr}",
-            $"FPS {fpsAvg:0} ({frameTimeAvgMs:0.1}ms)  Sim {avgStepMs:0.00}ms",
-            $"Brake bias {config.brakeBiasFront:0.00}  PkDecel {model.lastBrakingPeakDecelG:0.00}g"
-        };
-
-        float panelH = rows.Length * rowH + 2f * padV;
-        GUI.Box(new Rect(panelX, panelY, panelW, panelH), GUIContent.none, boxStyle);
-        for (int i = 0; i < rows.Length; i++)
-        {
-            GUI.Label(new Rect(panelX + 8f, panelY + padV + i * rowH, panelW - 16f, rowH), rows[i], labelStyle);
-        }
-
-        // ── Build Stamp Line (Always Visible) ─────────────────────────────
-        if (stampStyle == null)
-        {
-            stampStyle = new GUIStyle(labelStyle) { fontSize = 10, fontStyle = FontStyle.Normal };
-            stampStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f, 0.85f);
-        }
-        GUI.Label(new Rect(panelX + 4f, panelY + panelH + 2f, panelW + 200f, 16f), buildStampLine, stampStyle);
-
-        // ── Track Visibility & Surface Info Line ──────────────────────────
-        int visChunks = 0;
-        for (int i = 0; i < trackChunkRenderers.Count; i++)
-        {
-            if (trackChunkRenderers[i] != null && trackChunkRenderers[i].isVisible)
-                visChunks++;
-        }
         var qCarCurrent = spline != null ? spline.Query(model.X, model.Z) : default;
-        bool inPitHUD = IsInPitCorridor(model.X, model.Z);
-        string surfName = inPitHUD ? "asphalt (pitlane)" : (isCarOverRoadOrKerb ? "asphalt" : qCarCurrent.surface.ToString().ToLowerInvariant());
-        string trackStatusLine = $"s={qCarCurrent.s:F0} off={qCarCurrent.lateralOffset:F1} surf={surfName} chunks={visChunks}/{totalTrackChunks}";
-        GUI.Label(new Rect(panelX + 4f, panelY + panelH + 18f, panelW + 200f, 16f), trackStatusLine, stampStyle);
 
-        if (!string.IsNullOrEmpty(spawnOffsetError))
+        // ── Main telemetry panel (top-left) ───────────────────────────────
+        if (isDebugActive)
+        {
+            const float panelX = 8f;
+            const float panelY = 8f;
+            const float panelW = 390f;
+            const float rowH   = 20f;
+            const float padV   = 6f;
+
+            string aeroStr  = model.Aero.CurrentMode == AeroMode.Corner ? "CRN" : "STR";
+            string shiftStr = model.IsShifting ? " ⚡" : "";
+
+            string[] rows =
+            {
+                $"<b>VEHICLE</b> {model.TotalSpeedKmh:0} km/h ({model.Vx:0.0} m/s)  LatG {model.LatG:+0.00;-0.00}g  Ax {model.Ax/9.81f:+0.00;-0.00}g  \u03b2 {model.BetaDeg:+0.0;-0.0}\u00b0",
+                $"<b>INPUT</b> RawRoll {input.RawRollDeg:+0.0;-0.0}\u00b0  CalibTilt {input.RelDeg:+0.0;-0.0}\u00b0  NormIn {input.SteerTarget:+0.00;-0.00}  Out {input.Steer:+0.00;-0.00}",
+                $"<b>STEER</b> Req \u03b4 {model.DriverSteerAngleDeg:+0.0;-0.0}\u00b0  FL {model.SteerFLDeg:+0.0;-0.0}\u00b0  FR {model.SteerFRDeg:+0.0;-0.0}\u00b0  Lim {model.MechanicalSteerLimitDeg:0.0}\u00b0  Asst {model.DeltaAssistDeg:+0.00;-0.00}\u00b0",
+                $"<b>SLIP \u03b1</b> FL {model.SlipAngleFLDeg:+0.0;-0.0}\u00b0  FR {model.SlipAngleFRDeg:+0.0;-0.0}\u00b0  RL {model.SlipAngleRLDeg:+0.0;-0.0}\u00b0  RR {model.SlipAngleRRDeg:+0.0;-0.0}\u00b0",
+                $"<b>FORCES</b> FyF {model.FyFrontTotal:0}N  FyR {model.FyRearTotal:0}N  FzF {model.FzFrontTotal:0}N  FzR {model.FzRearTotal:0}N",
+                $"<b>GRIP/SAT</b> \u03bcF {model.MuFront:0.00}  \u03bcR {model.MuRear:0.00}  SatF {model.FrontTireSat*100f:0}%  SatR {model.RearTireSat*100f:0}%  Trac {model.RearTractionUse*100f:0}%",
+                $"<b>POWERTRAIN</b> Gear {(model.Gear == -1 ? "R" : model.Gear.ToString())}  RPM {model.EngineRpm:0}{shiftStr}  Aero {aeroStr}  Thr {input.Throttle:0.00}  Brk {input.Brake:0.00}",
+                $"<b>SYSTEM</b> FPS {fpsAvg:0} ({frameTimeAvgMs:0.1}ms)  Sim {avgStepMs:0.00}ms  CSV: {telemetry.Count} frames [K: Save]"
+            };
+
+            float panelH = rows.Length * rowH + 2f * padV;
+            GUI.Box(new Rect(panelX, panelY, panelW, panelH), GUIContent.none, boxStyle);
+            for (int i = 0; i < rows.Length; i++)
+            {
+                GUI.Label(new Rect(panelX + 8f, panelY + padV + i * rowH, panelW - 16f, rowH), rows[i], labelStyle);
+            }
+
+            // Build Stamp Line (Debug Mode)
+            if (stampStyle == null)
+            {
+                stampStyle = new GUIStyle(labelStyle) { fontSize = 10, fontStyle = FontStyle.Normal };
+                stampStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f, 0.85f);
+            }
+            GUI.Label(new Rect(panelX + 4f, panelY + panelH + 2f, panelW + 200f, 16f), buildStampLine, stampStyle);
+
+            // Track Visibility & Surface Info Line
+            int visChunks = 0;
+            for (int i = 0; i < trackChunkRenderers.Count; i++)
+            {
+                if (trackChunkRenderers[i] != null && trackChunkRenderers[i].isVisible)
+                    visChunks++;
+            }
+            bool inPitHUD = IsInPitCorridor(model.X, model.Z);
+            string surfName = inPitHUD ? "asphalt (pitlane)" : (isCarOverRoadOrKerb ? "asphalt" : qCarCurrent.surface.ToString().ToLowerInvariant());
+            string trackStatusLine = $"s={qCarCurrent.s:F0} off={qCarCurrent.lateralOffset:F1} surf={surfName} chunks={visChunks}/{totalTrackChunks}";
+            GUI.Label(new Rect(panelX + 4f, panelY + panelH + 18f, panelW + 200f, 16f), trackStatusLine, stampStyle);
+        }
+        else
+        {
+            // Discreet clean FPS badge in top left when not in debug mode
+            if (stampStyle == null)
+            {
+                stampStyle = new GUIStyle(labelStyle) { fontSize = 10, fontStyle = FontStyle.Normal };
+                stampStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f, 0.7f);
+            }
+            GUI.Label(new Rect(12f, 10f, 140f, 16f), $"FPS {fpsAvg:0}", stampStyle);
+        }
+
+        if (!string.IsNullOrEmpty(spawnOffsetError) && isDebugActive)
         {
             GUI.Label(new Rect(sw * 0.5f - 200f, 130f, 400f, 25f), $"<color=red><b>{spawnOffsetError}</b></color>", labelStyle);
         }
@@ -1067,52 +1222,100 @@ public class CarController : MonoBehaviour
         // ── Digital Speedometer & Cockpit Cluster (Bottom Center) ───────
         DrawBottomSpeedometerCluster(sw, sh);
 
-        // ── Top-Right Control Buttons (under Lap Timer) ───────────────────
-        float row1Y = (lapTimer != null) ? 126f : 10f;
-        float row2Y = row1Y + 36f;
+        // ── Top-Right Modern Action Grid (under Lap Timer) ───────────────
+        float btnGridW = 220f;
+        float btnGridX = sw - btnGridW - 10f;
+        float bW = 106f;
+        float bH = 32f;
+        float bGap = 8f;
+        float r1Y = (lapTimer != null) ? 126f : 10f;
+        float r2Y = r1Y + bH + bGap;
 
-        // Row 1: Mode Toggles (Auto Lap & Camera Mode)
-        // Auto Lap toggle (Left)
-        if (GUI.Button(new Rect(sw - 230f, row1Y, 105f, 32f), isAutoLapActive ? "Manual" : "Auto Lap"))
-        {
-            isAutoLapActive = !isAutoLapActive;
-        }
-
-        // Camera Toggle (Right)
+        // Row 1 Left: Camera Mode
+        string camSub = "CHASE";
         if (chaseCam == null)
         {
             chaseCam = Camera.main != null ? Camera.main.GetComponent<ChaseCamera>() : FindAnyObjectByType<ChaseCamera>();
         }
         if (chaseCam != null)
         {
-            string camText = chaseCam.currentMode switch
+            camSub = chaseCam.currentMode switch
             {
-                ChaseCamera.CameraMode.Chase => "📷 Chase",
-                ChaseCamera.CameraMode.Bonnet => "📷 Bonnet",
-                ChaseCamera.CameraMode.TCam => "📷 T-Cam",
-                _ => "📷 Cam"
+                ChaseCamera.CameraMode.Chase => "CHASE",
+                ChaseCamera.CameraMode.Bonnet => "BONNET",
+                ChaseCamera.CameraMode.TCam => "T-CAM",
+                _ => "CAM"
             };
-            if (GUI.Button(new Rect(sw - 120f, row1Y, 110f, 32f), camText))
-            {
-                chaseCam.ToggleCameraMode();
-            }
+        }
+        Rect rectCam = new Rect(btnGridX, r1Y, bW, bH);
+        CarInput.DrawModernButton(rectCam, "📷 " + camSub, new Color(0.3f, 0.8f, 1f), false);
+        if (GUI.Button(rectCam, GUIContent.none, GUIStyle.none))
+        {
+            if (chaseCam != null) chaseCam.ToggleCameraMode();
         }
 
-        // Row 2: Navigation & Debug (TP Prev, TP Next, Debug)
-        if (GUI.Button(new Rect(sw - 230f, row2Y, 68f, 28f), "TP Prev"))
+        // Row 1 Right: Auto Lap Mode
+        Rect rectAuto = new Rect(btnGridX + bW + bGap, r1Y, bW, bH);
+        Color autoColor = isAutoLapActive ? new Color(1f, 0.8f, 0.1f) : new Color(0.4f, 0.85f, 0.5f);
+        CarInput.DrawModernButton(rectAuto, isAutoLapActive ? "AUTO LAP" : "MANUAL", autoColor, isAutoLapActive);
+        if (GUI.Button(rectAuto, GUIContent.none, GUIStyle.none))
         {
-            currentCornerTeleportIdx--;
-            TeleportToCorner(currentCornerTeleportIdx);
+            isAutoLapActive = !isAutoLapActive;
         }
-        if (GUI.Button(new Rect(sw - 157f, row2Y, 68f, 28f), "TP Next"))
+
+        // Row 2 Left: Reset Car
+        Rect rectReset = new Rect(btnGridX, r2Y, bW, bH);
+        CarInput.DrawModernButton(rectReset, "🔄 RESET", new Color(1f, 0.45f, 0.45f), false);
+        if (GUI.Button(rectReset, GUIContent.none, GUIStyle.none))
         {
-            currentCornerTeleportIdx++;
-            TeleportToCorner(currentCornerTeleportIdx);
+            ResetCar();
         }
-        if (GUI.Button(new Rect(sw - 84f, row2Y, 74f, 28f), isDebugActive ? "Debug ON" : "Debug"))
+
+        // Row 2 Right: Telemetry / Debug Mode
+        Rect rectDbg = new Rect(btnGridX + bW + bGap, r2Y, bW, bH);
+        Color dbgColor = isDebugActive ? new Color(0.3f, 1f, 0.4f) : new Color(0.6f, 0.65f, 0.75f);
+        CarInput.DrawModernButton(rectDbg, isDebugActive ? "DEBUG ON" : "DEBUG", dbgColor, isDebugActive);
+        if (GUI.Button(rectDbg, GUIContent.none, GUIStyle.none))
         {
             isDebugActive = !isDebugActive;
             if (debugVisualRoot != null) debugVisualRoot.SetActive(isDebugActive);
+        }
+
+        // Row 3: Teleport Prev/Next (Shown only when isDebugActive)
+        if (isDebugActive)
+        {
+            float r3Y = r2Y + bH + bGap;
+            Rect rectTpPrev = new Rect(btnGridX, r3Y, bW, 28f);
+            Rect rectTpNext = new Rect(btnGridX + bW + bGap, r3Y, bW, 28f);
+            CarInput.DrawModernButton(rectTpPrev, "⏮ TP PREV", new Color(0.6f, 0.7f, 0.9f), false);
+            if (GUI.Button(rectTpPrev, GUIContent.none, GUIStyle.none))
+            {
+                currentCornerTeleportIdx--;
+                TeleportToCorner(currentCornerTeleportIdx);
+            }
+            CarInput.DrawModernButton(rectTpNext, "⏭ TP NEXT", new Color(0.6f, 0.7f, 0.9f), false);
+            if (GUI.Button(rectTpNext, GUIContent.none, GUIStyle.none))
+            {
+                currentCornerTeleportIdx++;
+                TeleportToCorner(currentCornerTeleportIdx);
+            }
+
+            // Row 4: CSV Telemetry Export
+            float r4Y = r3Y + 34f;
+            Rect rectCsv = new Rect(btnGridX, r4Y, btnGridW, 28f);
+            CarInput.DrawModernButton(rectCsv, "💾 CSV EXPORT [K]", new Color(0.2f, 0.9f, 0.5f), false);
+            if (GUI.Button(rectCsv, GUIContent.none, GUIStyle.none))
+            {
+                SaveTelemetry();
+            }
+        }
+
+        // CSV Save Banner
+        if (csvBannerTimer > 0f)
+        {
+            GUI.Box(new Rect(sw * 0.5f - 240f, 35f, 480f, 32f), GUIContent.none, boxStyle);
+            GUI.Label(new Rect(sw * 0.5f - 230f, 40f, 460f, 24f),
+                $"<color=#00FF88><b>TELEMETRY SAVED ({telemetry.Count} frames) \u2192 {System.IO.Path.GetFileName(lastSavePath)}</b></color>", labelStyle);
         }
 
         // Banner
@@ -1160,16 +1363,21 @@ public class CarController : MonoBehaviour
         debugLine.material = lineMat;
 
         // Tall coloured poles: S/F (white), S1 (cyan), S2 (magenta)
-        var s0 = trackConfig.samples[0];
-        CreateDebugPole("Pole_SF", s0.x, s0.y, s0.z, Color.white, lineMat);
-
         if (lapTimer != null && spline != null)
         {
+            var qSF = spline.QueryAtS(lapTimer.StartFinishS);
+            CreateDebugPole("Pole_SF", qSF.x, qSF.heightY, qSF.z, Color.white, lineMat);
+
             var qS1 = spline.QueryAtS(lapTimer.Sector1SplitS);
             CreateDebugPole("Pole_S1", qS1.x, qS1.heightY, qS1.z, Color.cyan, lineMat);
 
             var qS2 = spline.QueryAtS(lapTimer.Sector2SplitS);
             CreateDebugPole("Pole_S2", qS2.x, qS2.heightY, qS2.z, Color.magenta, lineMat);
+        }
+        else
+        {
+            var s0 = trackConfig.samples[0];
+            CreateDebugPole("Pole_SF", s0.x, s0.y, s0.z, Color.white, lineMat);
         }
 
         debugVisualRoot.SetActive(isDebugActive);
@@ -1387,11 +1595,12 @@ public class CarController : MonoBehaviour
         if (brkFill > 0.01f)
             GUI.DrawTexture(new Rect(rightX, rightY + 14f, barW * brkFill, barH), brkBarTex);
 
-        // DRS / Aero Badge
+        // DRS / Aero & Pit Limiter Badge
         bool isStraight = model.Aero.CurrentMode == AeroMode.Straight;
-        string drsText = isStraight ? "<color=#00FF66><b>[ DRS ]</b></color>" : "<color=#888888>[ CRN ]</color>";
+        string aeroDrsText = isStraight ? "<color=#00FF66><b>[ DRS ]</b></color>" : "<color=#888888>[ CRN ]</color>";
+        string badgeText = isPitLimiterActive ? "<color=#FFD600><b>[ PIT 80 ]</b></color>" : aeroDrsText;
         string latGText = $"{model.LatG:+0.0;-0.0}G";
-        GUI.Label(new Rect(rightX, rightY + 26f, barW, 16f), drsText, hudSubLabelStyle);
+        GUI.Label(new Rect(rightX, rightY + 26f, barW, 16f), badgeText, hudSubLabelStyle);
         GUI.Label(new Rect(rightX, rightY + 42f, barW, 16f), latGText, hudSubLabelStyle);
     }
 }

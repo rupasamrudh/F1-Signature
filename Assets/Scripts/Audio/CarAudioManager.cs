@@ -39,10 +39,10 @@ public class CarAudioManager : MonoBehaviour
     [SerializeField] private AudioSource gearShiftSource;
 
     [Header("Spatial Audio Settings")]
-    [Range(0f, 1f)] [SerializeField] private float cockpitSpatialBlend = 0.25f;
-    [Range(0f, 1f)] [SerializeField] private float chaseSpatialBlend = 0.85f;
-    [SerializeField] private float minDistance = 1.5f;
-    [SerializeField] private float maxDistance = 75.0f;
+    [Range(0f, 1f)] [SerializeField] private float cockpitSpatialBlend = 0.0f;
+    [Range(0f, 1f)] [SerializeField] private float chaseSpatialBlend = 0.15f;
+    [SerializeField] private float minDistance = 25.0f;
+    [SerializeField] private float maxDistance = 150.0f;
 
     [Header("Engine Tuning")]
     [SerializeField] private float idleRpm = 1000f;
@@ -53,7 +53,7 @@ public class CarAudioManager : MonoBehaviour
     // Runtime state tracking
     private int _lastGear = 1;
     private float _shiftCooldownTimer = 0f;
-    private float _currentSpatialBlend = 0.85f;
+    private float _currentSpatialBlend = 0.15f;
     private float _smoothedThrottle = 0f;
     private float _smoothedBrake = 0f;
     private float _smoothedRpm = 1000f;
@@ -62,6 +62,9 @@ public class CarAudioManager : MonoBehaviour
 
     void Awake()
     {
+#if UNITY_EDITOR
+        DisableSpeakerGizmo();
+#endif
         if (carController == null)
             carController = GetComponent<CarController>();
 
@@ -205,12 +208,12 @@ public class CarAudioManager : MonoBehaviour
         }
 
         // Dynamic volume calculation:
-        // Idle off-throttle: 0.35f
-        // Throttle applied: swells to 0.95f
-        // Off-throttle overrun: 0.45f
+        // Idle off-throttle: 0.45f
+        // Throttle applied: swells to 1.0f
+        // Off-throttle overrun: 0.65f
         float overrunFactor = Mathf.Clamp01((_smoothedRpm - 2000f) / 7000f);
-        float idleOrOverrunVol = 0.35f + overrunFactor * 0.15f;
-        float targetVol = Mathf.Lerp(idleOrOverrunVol, 0.95f, _smoothedThrottle);
+        float idleOrOverrunVol = 0.45f + overrunFactor * 0.20f;
+        float targetVol = Mathf.Lerp(idleOrOverrunVol, 1.0f, _smoothedThrottle);
 
         if (engineSource != null)
         {
@@ -234,7 +237,7 @@ public class CarAudioManager : MonoBehaviour
                 if (gearShiftSource != null && sf26GearUpshiftClip != null)
                 {
                     gearShiftSource.pitch = UnityEngine.Random.Range(0.99f, 1.01f);
-                    gearShiftSource.PlayOneShot(sf26GearUpshiftClip, 0.40f);
+                    gearShiftSource.PlayOneShot(sf26GearUpshiftClip, 0.65f);
                 }
             }
             else if (currentGear < _lastGear)
@@ -243,7 +246,7 @@ public class CarAudioManager : MonoBehaviour
                 if (gearShiftSource != null && sf26GearDownshiftClip != null)
                 {
                     gearShiftSource.pitch = UnityEngine.Random.Range(0.99f, 1.01f);
-                    gearShiftSource.PlayOneShot(sf26GearDownshiftClip, 0.38f);
+                    gearShiftSource.PlayOneShot(sf26GearDownshiftClip, 0.60f);
                 }
             }
 
@@ -252,7 +255,7 @@ public class CarAudioManager : MonoBehaviour
         }
     }
 
-    private void StartLoopingSource(AudioSource src, AudioClip clip, float initialVolume = 0.35f)
+    private void StartLoopingSource(AudioSource src, AudioClip clip, float initialVolume = 0.45f)
     {
         if (src == null || clip == null) return;
 
@@ -301,6 +304,9 @@ public class CarAudioManager : MonoBehaviour
         {
             GameObject go = new GameObject(childName);
             go.transform.SetParent(transform, false);
+#if UNITY_EDITOR
+            go.hideFlags = HideFlags.HideInHierarchy | HideFlags.HideInInspector;
+#endif
             child = go.transform;
         }
 
@@ -319,10 +325,10 @@ public class CarAudioManager : MonoBehaviour
         src.playOnAwake = false;
         src.loop = loop;
         src.spatialBlend = _currentSpatialBlend;
-        src.rolloffMode = AudioRolloffMode.Logarithmic;
+        src.rolloffMode = AudioRolloffMode.Linear;
         src.minDistance = minDistance;
         src.maxDistance = maxDistance;
-        src.dopplerLevel = 0.2f;
+        src.dopplerLevel = 0.0f;
 
         if (group != null)
         {
@@ -353,4 +359,32 @@ public class CarAudioManager : MonoBehaviour
         dB = Mathf.Clamp(dB, -80.0f, 0.0f);
         audioMixer.SetFloat(exposedParam, dB);
     }
+
+#if UNITY_EDITOR
+    public static void DisableSpeakerGizmo()
+    {
+        try
+        {
+            var annotationUtility = typeof(UnityEditor.Editor).Assembly.GetType("UnityEditor.AnnotationUtility");
+            if (annotationUtility != null)
+            {
+                var setIconEnabled = annotationUtility.GetMethod("SetIconEnabled", 
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                var setGizmoEnabled = annotationUtility.GetMethod("SetGizmoEnabled", 
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                if (setIconEnabled != null)
+                {
+                    setIconEnabled.Invoke(null, new object[] { 82, "", 0 }); // 82 = AudioSource
+                    setIconEnabled.Invoke(null, new object[] { 81, "", 0 }); // 81 = AudioListener
+                }
+                if (setGizmoEnabled != null)
+                {
+                    setGizmoEnabled.Invoke(null, new object[] { 82, "", 0 });
+                    setGizmoEnabled.Invoke(null, new object[] { 81, "", 0 });
+                }
+            }
+        }
+        catch { }
+    }
+#endif
 }

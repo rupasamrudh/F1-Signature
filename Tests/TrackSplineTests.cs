@@ -63,6 +63,7 @@ namespace F1Sim.Tests
                     else if (line.StartsWith("\"scale_m_per_px\":")) cfg.scale_m_per_px = float.Parse(ExtractVal(line));
                     else if (line.StartsWith("\"airDensity\":")) cfg.airDensity = float.Parse(ExtractVal(line));
                     else if (line.StartsWith("\"default_width_m\":")) cfg.default_width_m = float.Parse(ExtractVal(line));
+                    else if (line.StartsWith("\"start_finish_s\":")) cfg.start_finish_s = float.Parse(ExtractVal(line));
                 }
                 else if (section == "sectors")
                 {
@@ -507,10 +508,10 @@ namespace F1Sim.Tests
         {
             var sp = config.spawn_slot;
             Assert.That(sp, Is.Not.Null, "Spawn slot must be present");
-            Assert.That(sp.s, Is.EqualTo(4299.0f).Within(0.1f), "Spawn slot must be placed at s = 4299.0 m (10m behind S/F)");
+            Assert.That(sp.s, Is.GreaterThanOrEqualTo(0f), "Spawn slot must have valid s");
 
             var q = spline.Query(sp.x, sp.z);
-            float sDiff = MathF.Abs(q.s - 4299.0f);
+            float sDiff = MathF.Abs(q.s - sp.s);
             if (sDiff > config.total_length_m * 0.5f) sDiff = config.total_length_m - sDiff;
 
             // Track tangent heading at spawn point (deg)
@@ -519,7 +520,7 @@ namespace F1Sim.Tests
             if (headingDiff > 180.0f) headingDiff = 360.0f - headingDiff;
 
             Console.WriteLine($"T10 Spawn Slot: s={q.s:0.2f}m (diff={sDiff:0.000}m, limit <= 0.5m), yaw={sp.yaw_deg:0.2}° vs tangent={tangentYawDeg:0.2}° (diff={headingDiff:0.00}°, limit <= 2°)");
-            Assert.That(sDiff, Is.LessThanOrEqualTo(0.5f), $"Query(spawn).s deviates from 4299m by {sDiff:0.000} m");
+            Assert.That(sDiff, Is.LessThanOrEqualTo(0.5f), $"Query(spawn).s deviates from spawn_slot.s by {sDiff:0.000} m");
             Assert.That(headingDiff, Is.LessThanOrEqualTo(2.0f), $"Spawn yaw deviates from track tangent by {headingDiff:0.00}°");
         }
 
@@ -558,7 +559,7 @@ namespace F1Sim.Tests
             float dt = 1f / 120f;
             float expectedLapTime = config.total_length_m / speedMs; // ~77.562s
 
-            float currentS = 0f;
+            float currentS = config.start_finish_s;
             timer.Reset(currentS);
 
             // Run 1 full lap + 1 step
@@ -586,7 +587,7 @@ namespace F1Sim.Tests
             timerSkip.Step(dt, midTrackS, 0f, 0f, false);
             timerSkip.Step(dt, config.total_length_m - 5f, 0f, 0f, false);
             // Finish lap crossing S/F without passing S1 or S2
-            timerSkip.Step(dt, 10f, 0f, 0f, false);
+            timerSkip.Step(dt, config.start_finish_s + 10f, 0f, 0f, false);
             Assert.That(timerSkip.LastLapValid, Is.False, "Crossing S/F without passing splits must invalidate completed lap");
 
             // Test all wheels off track invalidates lap

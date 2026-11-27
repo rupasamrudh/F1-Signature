@@ -69,8 +69,8 @@ namespace F1Sim.Editor
             if (trackConfig != null && trackConfig.spawn_slot != null)
             {
                 var sp = trackConfig.spawn_slot;
-                carSpawnPos = new Vector3(sp.x, sp.y + 0.35f, sp.z);
-                carSpawnRot = Quaternion.Euler(0f, sp.yaw_deg, 0f);
+                carSpawnPos = new Vector3(sp.x, 0.412f, sp.z);
+                carSpawnRot = Quaternion.Euler(-0.97f, sp.yaw_deg, 0f);
             }
 
             // 7. Create Car GameObject
@@ -92,8 +92,9 @@ namespace F1Sim.Editor
             ci.sensitivitySlider = 2.0f;
             ci.maxTiltDeg = 90f;
             ci.deadzoneDeg = 4.5f;
-            ci.steerSmoothing = 14f;
-            ci.tiltFilter = 20f;
+            ci.steerSmoothing = 20f;
+            ci.tiltFilter = 22f;
+            ci.touchSteerAttackRate = 8.0f;
             ci.minPlaneG = 0.08f;
             ci.steerExpo = 1.40f;
             ci.useSpeedSensitiveLock = false;
@@ -130,9 +131,10 @@ namespace F1Sim.Editor
                 vehicleInstance.transform.localPosition = Vector3.zero;
                 vehicleInstance.transform.localRotation = Quaternion.identity;
 
-                // Add WheelVisualBinder to animate steering and rolling
+                // Add WheelVisualBinder to animate steering, rolling, and realistic chassis suspension
                 var binder = visualsGo.AddComponent<F1Sim.Vehicle.WheelVisualBinder>();
                 binder.controller = cc;
+                binder.body = vehicleInstance.transform.Find("Body");
                 binder.wheelFL = vehicleInstance.transform.Find("Wheel_FL");
                 binder.wheelFR = vehicleInstance.transform.Find("Wheel_FR");
                 binder.wheelRL = vehicleInstance.transform.Find("Wheel_RL");
@@ -177,11 +179,12 @@ namespace F1Sim.Editor
             var chase = camGo.AddComponent<ChaseCamera>();
             chase.target = carGo.transform;
             chase.car = cc;
-            chase.offset = new Vector3(0f, 2.5f, -9f);
-            chase.posLag = 8f;
-            chase.rotLag = 6f;
-            chase.fovBase = 60f;
-            chase.fovMax = 78f;
+            chase.offset = new Vector3(0f, 1.80f, -5.5f);
+            chase.posLag = 18f;
+            chase.rotLag = 10f;
+            chase.fovBase = 58f;
+            chase.fovMax = 65f;
+            chase.maxSpeedPullback = 1.0f;
             chase.SnapToTarget();
 
             // 9. Save scene

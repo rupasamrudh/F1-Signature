@@ -19,11 +19,17 @@ public class ChaseCamera : MonoBehaviour
     public bool showOnScreenToggle = true;
 
     [Header("Chase Camera Settings")]
-    public Vector3 offset = new Vector3(0f, 2.5f, -9f);
-    public float posLag = 8f;
-    public float rotLag = 6f;
-    public float fovBase = 60f;
-    public float fovMax = 78f;
+    public Vector3 offset = new Vector3(0f, 1.80f, -5.5f);
+    public Vector3 reverseOffset = new Vector3(0f, 1.80f, 5.5f); // Front view when reversing (looking over front nose to track behind)
+    public float posLag = 18f;
+    public float rotLag = 10f;
+    public float fovBase = 58f;
+    public float fovMax = 65f;
+    public float maxSpeedPullback = 1.0f;
+    public float reverseTransitionSpeed = 4.0f; // Smooth transition between forward and reverse views
+
+    // Reverse camera blend weight (0 = forward chase, 1 = reverse front view)
+    float reverseWeight = 0f;
 
     [Header("Bonnet Camera Settings (Rigid Nose Mount)")]
     public Vector3 bonnetOffset = new Vector3(0f, 0.62f, 1.15f);
@@ -113,7 +119,7 @@ public class ChaseCamera : MonoBehaviour
 
             default: // Chase
                 transform.position = target.TransformPoint(offset);
-                Vector3 cLook = target.position + target.forward * 4f + Vector3.up * 0.8f;
+                Vector3 cLook = target.position + target.forward * 6f + Vector3.up * 0.6f;
                 transform.rotation = Quaternion.LookRotation(cLook - transform.position, Vector3.up);
                 if (camComponent != null) camComponent.fieldOfView = fovBase;
                 break;
@@ -146,17 +152,47 @@ public class ChaseCamera : MonoBehaviour
         }
         else // Chase
         {
-            // Chase camera with smooth follow lag & dynamic speed FOV
-            Vector3 desiredPos = target.TransformPoint(offset);
+            // Reverse detection: true when car is in reverse gear (Gear == -1) or moving backwards (ForwardSpeedMs < -0.3 m/s)
+            bool isReversing = car != null && (car.Gear == -1 || car.ForwardSpeedMs < -0.3f);
+            float targetRevWeight = isReversing ? 1.0f : 0.0f;
+            reverseWeight = Mathf.MoveTowards(reverseWeight, targetRevWeight, reverseTransitionSpeed * dt);
+
+            // Chase camera with controlled speed pullback & subtle dynamic FOV
+            float speedRatio = car != null ? Mathf.Clamp01(car.SpeedKmh / 350f) : 0f;
+
+            // Controlled dynamic forward offset: base distance is -5.5m, pulled back by at most 1.0m at 350 km/h (-6.5m)
+            Vector3 dynamicFwdOffset = offset;
+            dynamicFwdOffset.z -= speedRatio * maxSpeedPullback;
+            dynamicFwdOffset.y += speedRatio * 0.15f;
+
+            // Reverse dynamic offset: placed in front of the car (+5.5m), looking back over the front wing
+            Vector3 dynamicRevOffset = reverseOffset;
+            dynamicRevOffset.z += speedRatio * maxSpeedPullback;
+            dynamicRevOffset.y += speedRatio * 0.15f;
+
+            // Interpolate position offset between forward chase and reverse front view
+            Vector3 blendedOffset = Vector3.Lerp(dynamicFwdOffset, dynamicRevOffset, reverseWeight);
+            Vector3 desiredPos = target.TransformPoint(blendedOffset);
+
+            // Position follow
             transform.position = Vector3.Lerp(transform.position, desiredPos, 1f - Mathf.Exp(-posLag * dt));
 
-            Vector3 lookTarget = target.position + target.forward * 4f + Vector3.up * 0.8f;
-            Quaternion desiredRot = Quaternion.LookRotation(lookTarget - transform.position, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, desiredRot, 1f - Mathf.Exp(-rotLag * dt));
+            // Look targets:
+            // Forward view: looks 6m in front of vehicle down the track
+            // Reverse view: looks through the car towards the track behind (-12m backward along car forward)
+            Vector3 fwdLookTarget = target.position + target.forward * 6f + Vector3.up * 0.6f;
+            Vector3 revLookTarget = target.position - target.forward * 12f + Vector3.up * 0.6f;
+            Vector3 blendedLookTarget = Vector3.Lerp(fwdLookTarget, revLookTarget, reverseWeight);
 
-            if (camComponent != null && car != null)
+            Vector3 lookDir = blendedLookTarget - transform.position;
+            if (lookDir.sqrMagnitude > 0.001f)
             {
-                float speedRatio = Mathf.Clamp01(car.SpeedKmh / 350f);
+                Quaternion desiredRot = Quaternion.LookRotation(lookDir, Vector3.up);
+                transform.rotation = Quaternion.Slerp(transform.rotation, desiredRot, 1f - Mathf.Exp(-rotLag * dt));
+            }
+
+            if (camComponent != null)
+            {
                 camComponent.fieldOfView = Mathf.Lerp(fovBase, fovMax, speedRatio);
             }
         }

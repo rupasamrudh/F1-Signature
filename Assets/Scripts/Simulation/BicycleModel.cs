@@ -6,7 +6,7 @@ namespace F1Sim.Simulation
     public class CarParams
     {
         // ── Parameter versioning ───────────────────────────────────────────
-        public const int CURRENT_VERSION = 12;
+        public const int CURRENT_VERSION = 13;
         public int paramsVersion;
 
         // ── Chassis (2026-style: 768 kg, 3.4 m wheelbase) ─────────────────
@@ -15,7 +15,7 @@ namespace F1Sim.Simulation
         public float frontWeightFrac = 0.455f;
         public float cgHeight        = 0.28f;
         public float yawInertia      = 2800f;   // tuned M2 stabilisation: 0.10-0.25s yaw rise time, overshoot < 25%
-        public float maxSteerAngle   = 0.15f;   // rad (~8.59 deg) 90-degree corner race lock (steer is at most 90 deg at wheel)
+        public float maxSteerAngle   = 0.28f;   // rad (~16.0 deg) realistic F1 mechanical steering lock for hairpins
         public float steerFalloffSpeed = 30f;   // m/s, legacy speed falloff
 
         // ── 4-Wheel geometry (M2) ──────────────────────────────────────────
@@ -25,12 +25,15 @@ namespace F1Sim.Simulation
         public float ackermannFrac      = 0.5f;   // 0 = parallel, 1 = full Ackermann
         public float minWheelLoad       = 150f;   // N minimum per-wheel load
 
-        // ── Grip-limited steering lock ─────────────────────────────────────
-        public float steerLimitScale = 1.65f; // Enhanced cornering authority to carry speed through medium & high-speed corners
+        // ── Speed-dependent mechanical steering response ───────────────────
+        // Separates mechanical rack response from tyre grip limits.
+        public float speedSteerRefSpeed = 45.0f;  // m/s (~162 km/h) reference speed for speed-sensitive rack response
+        public float minSteerScale      = 0.35f;  // floor fraction at extreme speeds (~5.6 deg / 0.098 rad at 300+ km/h)
+        public float steerLimitScale    = 1.0f;   // user/tuning scale factor
 
         // ── Dynamic Cornering Steering (Decel/Accel modulation) ─────────
-        public float decelTurnGain      = 0.35f; // Extra turn authority while decelerating (turns more and more to tuck into apex)
-        public float accelTurnReduction = 0.38f; // Steering unwinding while accelerating (turns less and less to carry exit speed)
+        public float decelTurnGain      = 0.0f;  // Natural weight transfer produces trail-braking rotation without artificial angle multipliers
+        public float accelTurnReduction = 0.0f;  // Natural rear weight transfer governs exit acceleration without artificial angle cuts
 
         // ── Steering rate limit ────────────────────────────────────────────
         public float steerRateMax   = 2.8f;   // rad/s at 0 m/s (~160 deg/s smooth progressive turn-in)
@@ -38,6 +41,7 @@ namespace F1Sim.Simulation
         public float steerRateSpeed = 80f;    // m/s
 
         // ── Stability assist ───────────────────────────────────────────────
+        public bool  enableStabilityAssist = true; // Toggle for simulation testing and driver assist config
         public float stabilityAssist = 0.65f;  // Smooth, refined counter-steer assist (eliminates sharp snaps)
         public float kBeta           = 0.55f;  // Sideslip angle damping
         public float kYaw            = 0.035f; // Yaw rate error damping
@@ -191,6 +195,17 @@ namespace F1Sim.Simulation
             return MathF.Max(scale, P.lateralGripFloor);
         }
 
+        /// <summary>
+        /// Soft deadband helper: smoothly fades from 0 at |x|=0 to (|x|-db) beyond the deadband.
+        /// C1-continuous – no abrupt sign flips or discontinuous jumps at the deadband boundary.
+        /// </summary>
+        static float SoftDeadband(float x, float db)
+        {
+            float absX = MathF.Abs(x);
+            if (absX <= db) return 0f;
+            return MathF.Sign(x) * (absX - db);
+        }
+
         public void Step(float dt, float steer, float throttle, float brake)
         {
             const float g = 9.81f;
@@ -214,9 +229,12 @@ namespace F1Sim.Simulation
             float muF = Mu(fzF), muR = Mu(fzR);
             float fxMaxF = muF * fzF, fxMaxR = muR * fzR;
 
-            // Grip-limited steering lock
-            float ayMax = 0.85f * (muF * fzF + muR * fzR) / P.mass;
-            float deltaLimit = MathF.Min(P.maxSteerAngle, (L * ayMax / MathF.Max(Vx * Vx, 25f)) * P.steerLimitScale);
+            // Speed-dependent mechanical steering response
+            // Mechanical steering angle is separated from tyre grip.
+            // Tyre saturation is governed naturally by the tyre model via slip angle.
+            float uSpeed = MathF.Max(0f, Vx) / P.speedSteerRefSpeed;
+            float speedScale = Math.Clamp(1.0f / (1.0f + uSpeed * uSpeed * 0.70f), P.minSteerScale, 1.0f);
+            float deltaLimit = P.maxSteerAngle * speedScale * P.steerLimitScale;
             float deltaCmd = -steer * deltaLimit; // input steer: +1 = right, so -steer is left-positive
 
             // Steering rate limit: actual angle moves toward commanded angle at most steerRate rad/s
@@ -229,20 +247,31 @@ namespace F1Sim.Simulation
             else
                 steerAngle += MathF.Sign(diff) * maxStep;
 
-            // Stability assist: smooth counter-steer correction DeltaAssist
             float beta = MathF.Atan2(Vy, MathF.Max(Vx, 5f));
-            float rRef = Vx * MathF.Tan(steerAngle) / L;
-            float assistFade = Math.Clamp(speed / 3f, 0f, 1f);
+            float ayMax = 0.85f * (muF * fzF + muR * fzR) / P.mass;
 
-            float betaEff = MathF.Abs(beta) > 0.02f ? beta : 0f;
-            float yawErr  = (R - rRef);
-            float yawEff  = MathF.Abs(yawErr) > 0.03f ? yawErr : 0f;
+            // Stability assist: smooth counter-steer correction DeltaAssist
+            if (P.enableStabilityAssist && P.stabilityAssist > 0.001f)
+            {
+                float rRef = Vx * MathF.Tan(finalSteerAngle) / L; // use finalSteerAngle for consistent reference
+                float assistFade = Math.Clamp(speed / 3f, 0f, 1f);
 
-            float daTarget = P.stabilityAssist * (P.kBeta * betaEff - P.kYaw * yawEff) * assistFade;
-            daTarget = Math.Clamp(daTarget, -P.maxAssistAngle, P.maxAssistAngle);
-            DeltaAssist += (daTarget - DeltaAssist) * (1f - MathF.Exp(-P.assistFilterRate * dt));
+                // Soft deadband: C1-continuous fade-in. No abrupt sign-flip snap at the threshold boundary.
+                const float betaDB = 0.025f;
+                const float yawDB  = 0.04f;
+                float betaSoft = SoftDeadband(beta, betaDB);
+                float yawSoft  = SoftDeadband(R - rRef, yawDB);
 
-            float delta = steerAngle + DeltaAssist;
+                float daTarget = P.stabilityAssist * (P.kBeta * betaSoft - P.kYaw * yawSoft) * assistFade;
+                daTarget = Math.Clamp(daTarget, -P.maxAssistAngle, P.maxAssistAngle);
+                DeltaAssist += (daTarget - DeltaAssist) * (1f - MathF.Exp(-P.assistFilterRate * dt));
+            }
+            else
+            {
+                DeltaAssist = 0f;
+            }
+
+            float delta = Math.Clamp(steerAngle + DeltaAssist, -P.maxSteerAngle, P.maxSteerAngle);
             finalSteerAngle = delta;
 
             // Longitudinal demand: Brake-while-cornering coupling
